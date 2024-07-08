@@ -19,6 +19,8 @@ import (
 // If a user has registered interest, send the next 'finished' message to the ntfy topic + the users name
 // Delete the user's "interest"
 
+var db *sql.DB
+
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -45,20 +47,25 @@ func main() {
 	router.GET("/", getIndex)
 	go router.Run() // Not sure if this is okay? Seems to work tho
 
-	db, err := sql.Open("sqlite3", "data.db")
+	db, err = sql.Open("sqlite3", "data.db")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
 
 	sqlStmt := `
-	create table if not exists users (id integer not null primary key, name text, created_at date);
+	create table if not exists users (
+		id integer not null primary key,
+		name text unique,
+		created_at datetime
+	);
 	`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
 		log.Printf("%q: %s\n", err, sqlStmt)
 		return
 	}
+	log.Debug("Database setup")
 
 	opts := MQTT.NewClientOptions()
 	opts.AddBroker("mqtt://10.0.0.3:1883")
@@ -104,7 +111,24 @@ func getPing(c *gin.Context) {
 }
 
 func getIndex(c *gin.Context) {
+	rows, err := db.Query("select name from users")
+	if err != nil {
+		log.Fatal("Error querying users table")
+	}
+	defer rows.Close()
+
+	var users []string
+	for rows.Next() {
+		var user string
+		err := rows.Scan(&user)
+		if err != nil {
+			log.Error("Error scanning user record", "error", err)
+			continue
+		}
+		users = append(users, user)
+	}
 	c.HTML(http.StatusOK, "index", gin.H{
-		"title": "Main website",
+		"title": "Laundry Notifications",
+		"users": users,
 	})
 }
