@@ -2,10 +2,13 @@ package main
 
 import (
 	"database/sql"
+	"net/http"
 	"os"
 
 	"github.com/charmbracelet/log"
 	MQTT "github.com/eclipse/paho.mqtt.golang"
+	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -17,9 +20,29 @@ import (
 // Delete the user's "interest"
 
 func main() {
-	log.SetLevel(log.DebugLevel)
+	err := godotenv.Load()
+	if err != nil {
+		log.Info("Error loading .env file. Either one not provided or running in prod mode")
+	}
+	env := getEnv("ENV")
+	isDev := false
+	if env == "dev" || env == "development" {
+		log.SetLevel(log.DebugLevel)
+		isDev = true
+	}
 	log.Info("Starting application")
 	log.Info("Log set to " + log.GetLevel().String())
+
+	router := gin.Default()
+	if isDev {
+		router.ForwardedByClientIP = true
+		router.SetTrustedProxies([]string{"127.0.0.1"})
+	}
+	router.LoadHTMLGlob("templates/**/*.tmpl")
+	router.Static("/static", "./static")
+
+	router.GET("/ping", getPing)
+	router.Run()
 
 	db, err := sql.Open("sqlite3", "data.db")
 	if err != nil {
@@ -67,4 +90,14 @@ func main() {
 		log.Debug("RECEIVED TOPIC: %s MESSAGE: %s\n", "topic", incoming[0], "message", incoming[1])
 	}
 
+}
+
+// Get an env var
+func getEnv(envVar string) string {
+	return os.Getenv(envVar)
+}
+
+// Simple ping function
+func getPing(c *gin.Context) {
+	c.String(http.StatusOK, "PONG")
 }
