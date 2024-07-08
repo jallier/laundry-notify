@@ -1,8 +1,32 @@
 {{ define "index"}}
 <html>
-  <head>Laundry Notifications</head>
-  <body>
-    <h1>Test</h1>
-  </body>
+
+<head>
+  <link
+    rel="stylesheet"
+    type="text/css"
+    href="/static/app.css"
+  >
+  <script
+    src="https://unpkg.com/htmx.org@1.9.8"
+    integrity="sha384-rgjA7mptc2ETQqXoYC3/zJvkU7K/aP44Y+z7xQuJiVnB/422P/Ak+F/AqFR7E4Wr"
+    crossorigin="anonymous"
+  ></script>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+  <title>Laundry Notifications</title>
+</head>
+
+<body class="p-2">
+  <h1>Test</h1>
+  <form>
+    <label for="name">Name:</label>
+    <input type="text" id="name" name="name" placeholder="Enter your name">
+    <input type="submit" value="Submit">
+  </form>
+</body>
+
 </html>
 {{end}}

@@ -42,7 +42,8 @@ func main() {
 	router.Static("/static", "./static")
 
 	router.GET("/ping", getPing)
-	router.Run()
+	router.GET("/", getIndex)
+	go router.Run() // Not sure if this is okay? Seems to work tho
 
 	db, err := sql.Open("sqlite3", "data.db")
 	if err != nil {
@@ -100,4 +101,10 @@ func getEnv(envVar string) string {
 // Simple ping function
 func getPing(c *gin.Context) {
 	c.String(http.StatusOK, "PONG")
+}
+
+func getIndex(c *gin.Context) {
+	c.HTML(http.StatusOK, "index", gin.H{
+		"title": "Main website",
+	})
 }
