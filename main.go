@@ -45,6 +45,8 @@ func main() {
 
 	router.GET("/ping", getPing)
 	router.GET("/", getIndex)
+	router.POST("/search", handleSearch)
+	router.POST("/add-user", handleAddUser)
 	go router.Run() // Not sure if this is okay? Seems to work tho
 
 	db, err = sql.Open("sqlite3", "data.db")
@@ -110,8 +112,8 @@ func getPing(c *gin.Context) {
 	c.String(http.StatusOK, "PONG")
 }
 
-func getIndex(c *gin.Context) {
-	rows, err := db.Query("select name from users")
+func getRecentUsers() []string {
+	rows, err := db.Query("select name from users order by created_at desc limit 1")
 	if err != nil {
 		log.Fatal("Error querying users table")
 	}
@@ -127,8 +129,60 @@ func getIndex(c *gin.Context) {
 		}
 		users = append(users, user)
 	}
+
+	return users
+}
+
+func getIndex(c *gin.Context) {
+	users := getRecentUsers()
 	c.HTML(http.StatusOK, "index", gin.H{
 		"title": "Laundry Notifications",
+		"users": users[:1],
+	})
+}
+
+type SearchRequest struct {
+	Name string `form:"name"`
+}
+
+func handleSearch(c *gin.Context) {
+	var req SearchRequest
+	c.Bind(&req)
+	log.Debug("Received search request", "name", req.Name)
+	users := []string{}
+
+	// If no name is provided, return the most recent user
+	if req.Name == "" {
+		users = getRecentUsers()
+		c.HTML(http.StatusOK, "partials/search", gin.H{
+			"users": users,
+		})
+		return
+	}
+
+	// First check if the user exists
+	row := db.QueryRow("select name from users where name = ?", req.Name)
+	var name string
+	err := row.Scan(&name)
+	if err != nil {
+		log.Error("Error scanning user record", "error", err)
+	} else {
+		log.Debug("User found", "name", name)
+		users = []string{name}
+	}
+
+	c.HTML(http.StatusOK, "partials/search", gin.H{
 		"users": users,
+	})
+}
+
+func handleAddUser(c *gin.Context) {
+	var req SearchRequest
+	c.Bind(&req)
+	log.Debug("Received add user request", "name", req.Name)
+
+	// TODO: add the user to the db
+	c.HTML(http.StatusOK, "registered", gin.H{
+		"name": req.Name,
 	})
 }
