@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/charmbracelet/log"
 	MQTT "github.com/eclipse/paho.mqtt.golang"
@@ -22,8 +23,10 @@ import (
 
 var db *sql.DB
 var isDev bool
+var topic string
 
 func main() {
+	// Setup stuff up here
 	err := godotenv.Load()
 	if err != nil {
 		log.Info("Error loading .env file. Either one not provided or running in prod mode")
@@ -34,6 +37,7 @@ func main() {
 		log.SetLevel(log.DebugLevel)
 		isDev = true
 	}
+	topic = getEnv("MQTT_TOPIC")
 	log.Info("Starting application")
 	log.Info("Log set to " + log.GetLevel().String())
 
@@ -51,6 +55,13 @@ func main() {
 		name text unique,
 		created_at datetime
 	);
+
+	create table if not exists events (
+		id integer not null primary key,
+		type text,
+		started_at datetime,
+		finished_at datetime
+	)
 	`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
@@ -61,33 +72,89 @@ func main() {
 
 	opts := MQTT.NewClientOptions()
 	opts.AddBroker("mqtt://10.0.0.3:1883")
-	opts.SetClientID("laundry-notify")
 	opts.SetUsername("")
 	opts.SetPassword("")
+	opts.SetClientID("laundry-notify-mac")
 
 	log.Info("starting subscriber")
-	choke := make(chan [2]string)
+	events := make(chan [2]string)
 
 	opts.SetDefaultPublishHandler(func(client MQTT.Client, msg MQTT.Message) {
-		choke <- [2]string{msg.Topic(), string(msg.Payload())}
+		events <- [2]string{msg.Topic(), string(msg.Payload())}
 	})
 
 	client := MQTT.NewClient(opts)
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
-		panic(token.Error())
+		log.Fatal("error establishing mqtt connection", "error", token.Error())
 	}
 	log.Info("Connected")
 
-	topic := "test"
 	if token := client.Subscribe(topic, byte(0), nil); token.Wait() && token.Error() != nil {
-		log.Error(token.Error())
+		log.Error("error establishing connection to topic", "error", token.Error(), "topic", topic)
 		os.Exit(1)
 	}
-	log.Info("Subscribed to 'test' topic")
+	log.Info("Subscribed to topic", "topic", topic)
 
-	for {
-		incoming := <-choke
-		log.Debug("RECEIVED TOPIC: %s MESSAGE: %s\n", "topic", incoming[0], "message", incoming[1])
+	// Write the events to the db as they come in from the channel
+	for incoming := range events {
+		topic, message := incoming[0], incoming[1]
+		log.Debug("RECEIVED TOPIC: %s MESSAGE: %s\n", "topic", topic, "message", message)
+
+		topicSlice := strings.Split(topic, "/")
+		leafTopic := topicSlice[len(topicSlice)-1]
+
+		messageSlice := strings.Split(message, "=")
+		messageKey := messageSlice[0]
+		messageValue := messageSlice[1]
+
+		tx, err := db.Begin()
+		if err != nil {
+			log.Fatal("Error starting transaction", "error", err)
+		}
+
+		if messageKey == "started_at" {
+			stmt, err := tx.Prepare("insert into events (type, started_at) values (?, ?)")
+			if err != nil {
+				log.Fatal("Error preparing statement", "error", err)
+			}
+			_, err = stmt.Exec(leafTopic, messageValue)
+			if err != nil {
+				log.Fatal("Error inserting event", "error", err)
+			}
+			// stmt.Close()
+			log.Info("New event written to db", "topic", leafTopic, "message", message)
+		}
+		if messageKey == "finished_at" {
+			// Get the most recent unfinished event
+			stmtQuery, err := tx.Prepare("select id from events where type = ? and finished_at is null order by started_at desc limit 1")
+			if err != nil {
+				log.Fatal("Error preparing statement", "error", err)
+			}
+			var eventId int
+			err = stmtQuery.QueryRow(leafTopic).Scan(&eventId)
+			if err != nil {
+				log.Fatal("Error querying for unfinished event", "error", err)
+			}
+			// stmtQuery.Close()
+
+			// Update the most recent unfinished event
+			stmt, err := tx.Prepare("update events set finished_at = ? where id = ?")
+			if err != nil {
+				log.Fatal("Error preparing statement", "error", err)
+			}
+			_, err = stmt.Exec(messageValue, eventId)
+			if err != nil {
+				log.Fatal("Error updating event", "error", err)
+			}
+			// stmt.Close()
+			log.Info("Event updated in db", "id", eventId, "topic", leafTopic, "message", message)
+		}
+
+		err = tx.Commit()
+		if err != nil {
+			log.Error("Error writing event to db", "error", err)
+		}
+		log.Debug("Transaction committed")
 	}
 
 }
