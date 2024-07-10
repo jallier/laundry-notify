@@ -1,0 +1,11 @@
+{{ define "head" }}
+<script>
+  setTimeout(() => {
+    window.location.href = "/"; // TODO: update this to point to the ntfy topic
+  }, 5000);
+</script>
+{{ end }}
+
+{{ define "content" }}
+Registered for next load, {{ .name }}
+{{ end }}

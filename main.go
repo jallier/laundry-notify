@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	MQTT "github.com/eclipse/paho.mqtt.golang"
+	"github.com/foolin/goview/supports/ginview"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
@@ -20,6 +21,7 @@ import (
 // Delete the user's "interest"
 
 var db *sql.DB
+var isDev bool
 
 func main() {
 	err := godotenv.Load()
@@ -27,7 +29,7 @@ func main() {
 		log.Info("Error loading .env file. Either one not provided or running in prod mode")
 	}
 	env := getEnv("ENV")
-	isDev := false
+	isDev = false
 	if env == "dev" || env == "development" {
 		log.SetLevel(log.DebugLevel)
 		isDev = true
@@ -35,19 +37,7 @@ func main() {
 	log.Info("Starting application")
 	log.Info("Log set to " + log.GetLevel().String())
 
-	router := gin.Default()
-	if isDev {
-		router.ForwardedByClientIP = true
-		router.SetTrustedProxies([]string{"127.0.0.1"})
-	}
-	router.LoadHTMLGlob("templates/**/*.tmpl")
-	router.Static("/static", "./static")
-
-	router.GET("/ping", getPing)
-	router.GET("/", getIndex)
-	router.POST("/search", handleSearch)
-	router.POST("/add-user", handleAddUser)
-	go router.Run() // Not sure if this is okay? Seems to work tho
+	go setupRouter()
 
 	db, err = sql.Open("sqlite3", "data.db")
 	if err != nil {
@@ -107,6 +97,35 @@ func getEnv(envVar string) string {
 	return os.Getenv(envVar)
 }
 
+func setupRouter() {
+	router := gin.Default()
+	if isDev {
+		router.ForwardedByClientIP = true
+		router.SetTrustedProxies([]string{"127.0.0.1"})
+	}
+	router.HTMLRender = ginview.Default()
+	router.Static("/static", "./static")
+
+	router.GET("/ping", getPing)
+	router.GET("/", handleIndex)
+	router.POST("/search", handleSearch)
+	register := router.Group("/register")
+	{
+		register.POST("/", handleRegister)
+		register.GET("/", func(c *gin.Context) {
+			var query SearchRequest
+			c.Bind(&query)
+
+			c.HTML(http.StatusOK, "registered", gin.H{
+				"title": "Register",
+				"name":  query.Name,
+			})
+		})
+	}
+
+	router.Run()
+}
+
 // Simple ping function
 func getPing(c *gin.Context) {
 	c.String(http.StatusOK, "PONG")
@@ -133,7 +152,7 @@ func getRecentUsers() []string {
 	return users
 }
 
-func getIndex(c *gin.Context) {
+func handleIndex(c *gin.Context) {
 	users := getRecentUsers()
 	c.HTML(http.StatusOK, "index", gin.H{
 		"title": "Laundry Notifications",
@@ -154,13 +173,12 @@ func handleSearch(c *gin.Context) {
 	// If no name is provided, return the most recent user
 	if req.Name == "" {
 		users = getRecentUsers()
-		c.HTML(http.StatusOK, "partials/search", gin.H{
+		c.HTML(http.StatusOK, "partials/search.html", gin.H{
 			"users": users,
 		})
 		return
 	}
 
-	// First check if the user exists
 	row := db.QueryRow("select name from users where name = ?", req.Name)
 	var name string
 	err := row.Scan(&name)
@@ -171,17 +189,40 @@ func handleSearch(c *gin.Context) {
 		users = []string{name}
 	}
 
-	c.HTML(http.StatusOK, "partials/search", gin.H{
+	c.HTML(http.StatusOK, "partials/search.html", gin.H{
 		"users": users,
 	})
 }
 
-func handleAddUser(c *gin.Context) {
+func handleRegister(c *gin.Context) {
 	var req SearchRequest
 	c.Bind(&req)
 	log.Debug("Received add user request", "name", req.Name)
 
-	// TODO: add the user to the db
+	// Check if the user already exists
+	row := db.QueryRow("select name from users where name = ?", req.Name)
+	var name string
+	err := row.Scan(&name)
+	if err != nil {
+		if err != sql.ErrNoRows {
+			log.Fatal("Error scanning user record", "error", err)
+		}
+
+		log.Debug("User does not exist")
+	}
+
+	if name != "" {
+		log.Debug("User already exists", "name", name)
+	} else {
+		log.Debug("User does not exist, adding", "name", name)
+		_, err = db.Exec("insert into users (name, created_at) values (?, datetime())", req.Name)
+		if err != nil {
+			// TODO: redirect to generic error page for these kinds of errors
+			log.Fatal("Error adding user", "error", err)
+		}
+		log.Debug("User added", "name", name)
+	}
+
 	c.HTML(http.StatusOK, "registered", gin.H{
 		"name": req.Name,
 	})
