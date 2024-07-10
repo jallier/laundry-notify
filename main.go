@@ -29,7 +29,7 @@ func main() {
 	// Setup stuff up here
 	err := godotenv.Load()
 	if err != nil {
-		log.Info("Error loading .env file. Either one not provided or running in prod mode")
+		log.Fatal("Error loading .env file. Either one not provided or running in prod mode")
 	}
 	env := getEnv("ENV")
 	isDev = false
@@ -38,6 +38,9 @@ func main() {
 		isDev = true
 	}
 	topic = getEnv("MQTT_TOPIC")
+	if topic == "" {
+		log.Fatal("MQTT_TOPIC env var not set; Please set this in the .env file and restart the application")
+	}
 	log.Info("Starting application")
 	log.Info("Log set to " + log.GetLevel().String())
 
