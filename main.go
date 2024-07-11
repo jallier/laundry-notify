@@ -38,6 +38,10 @@ func main() {
 		isDev = true
 	}
 	topic = getEnv("MQTT_TOPIC")
+	mqttUrl := getEnv("MQTT_URL")
+	mqttClientId := getEnv("MQTT_CLIENT_ID")
+	mqttUsername := getEnv("MQTT_USERNAME")
+	mqttPassword := getEnv("MQTT_PASSWORD")
 	if topic == "" {
 		log.Fatal("MQTT_TOPIC env var not set; Please set this in the .env file and restart the application")
 	}
@@ -62,7 +66,7 @@ func main() {
 	create table if not exists events (
 		id integer not null primary key,
 		type text,
-		started_at datetime,
+		started_at datetime not null,
 		finished_at datetime
 	)
 	`
@@ -74,10 +78,10 @@ func main() {
 	log.Debug("Database setup")
 
 	opts := MQTT.NewClientOptions()
-	opts.AddBroker("mqtt://10.0.0.3:1883")
-	opts.SetUsername("")
-	opts.SetPassword("")
-	opts.SetClientID("laundry-notify-mac")
+	opts.AddBroker(mqttUrl)
+	opts.SetClientID(mqttClientId)
+	opts.SetUsername(mqttUsername)
+	opts.SetPassword(mqttPassword)
 
 	log.Info("starting subscriber")
 	events := make(chan [2]string)
@@ -99,8 +103,8 @@ func main() {
 	log.Info("Subscribed to topic", "topic", topic)
 
 	// Write the events to the db as they come in from the channel
-	for incoming := range events {
-		topic, message := incoming[0], incoming[1]
+	for incomingEvent := range events {
+		topic, message := incomingEvent[0], incomingEvent[1]
 		log.Debug("RECEIVED TOPIC: %s MESSAGE: %s\n", "topic", topic, "message", message)
 
 		topicSlice := strings.Split(topic, "/")
@@ -112,17 +116,20 @@ func main() {
 
 		tx, err := db.Begin()
 		if err != nil {
-			log.Fatal("Error starting transaction", "error", err)
+			log.Error("Error starting transaction", "error", err)
+			continue
 		}
 
 		if messageKey == "started_at" {
 			stmt, err := tx.Prepare("insert into events (type, started_at) values (?, ?)")
 			if err != nil {
-				log.Fatal("Error preparing statement", "error", err)
+				log.Error("Error preparing statement", "error", err)
+				continue
 			}
 			_, err = stmt.Exec(leafTopic, messageValue)
 			if err != nil {
-				log.Fatal("Error inserting event", "error", err)
+				log.Error("Error inserting event", "error", err)
+				continue
 			}
 			// stmt.Close()
 			log.Info("New event written to db", "topic", leafTopic, "message", message)
@@ -136,18 +143,20 @@ func main() {
 			var eventId int
 			err = stmtQuery.QueryRow(leafTopic).Scan(&eventId)
 			if err != nil {
-				log.Fatal("Error querying for unfinished event", "error", err)
+				log.Error("Error querying for unfinished event", "error", err)
+				continue
 			}
-			// stmtQuery.Close()
 
 			// Update the most recent unfinished event
 			stmt, err := tx.Prepare("update events set finished_at = ? where id = ?")
 			if err != nil {
-				log.Fatal("Error preparing statement", "error", err)
+				log.Error("Error preparing statement", "error", err)
+				continue
 			}
 			_, err = stmt.Exec(messageValue, eventId)
 			if err != nil {
-				log.Fatal("Error updating event", "error", err)
+				log.Error("Error updating event", "error", err)
+				continue
 			}
 			// stmt.Close()
 			log.Info("Event updated in db", "id", eventId, "topic", leafTopic, "message", message)
@@ -156,8 +165,9 @@ func main() {
 		err = tx.Commit()
 		if err != nil {
 			log.Error("Error writing event to db", "error", err)
+		} else {
+			log.Debug("Transaction committed")
 		}
-		log.Debug("Transaction committed")
 	}
 
 }
@@ -201,10 +211,11 @@ func getPing(c *gin.Context) {
 	c.String(http.StatusOK, "PONG")
 }
 
-func getRecentUsers() []string {
+func getRecentUsers() ([]string, error) {
 	rows, err := db.Query("select name from users order by created_at desc limit 1")
 	if err != nil {
-		log.Fatal("Error querying users table")
+		log.Error("Error querying users table")
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -219,14 +230,44 @@ func getRecentUsers() []string {
 		users = append(users, user)
 	}
 
-	return users
+	return users, nil
+}
+
+type Event struct {
+	Id         int
+	Type       string
+	StartedAt  sql.NullString
+	FinishedAt sql.NullString
+}
+
+func getMostRecentEvent() (*Event, error) {
+	row := db.QueryRow("SELECT id, type, started_at, finished_at FROM events ORDER BY MAX(started_at, IFNULL(finished_at, started_at)) DESC")
+	var event Event
+	err := row.Scan(&event.Id, &event.Type, &event.StartedAt, &event.FinishedAt)
+	if err != nil {
+		log.Error("Error scanning event record", "error", err)
+		return &Event{}, err
+	}
+
+	return &event, nil
 }
 
 func handleIndex(c *gin.Context) {
-	users := getRecentUsers()
+	users, err := getRecentUsers()
+	if err != nil {
+		log.Error("Error getting recent users", "error", err)
+		users = []string{}
+	}
+	mostRecentEvent, err := getMostRecentEvent()
+	if err != nil {
+		log.Error("Error getting most recent event", "error", err)
+		mostRecentEvent = &Event{}
+	}
+	log.Debug("Most recent event", "event", mostRecentEvent)
 	c.HTML(http.StatusOK, "index", gin.H{
-		"title": "Laundry Notifications",
-		"users": users[:1],
+		"title":           "Laundry Notifications",
+		"users":           users[:1],
+		"mostRecentEvent": mostRecentEvent,
 	})
 }
 
@@ -242,7 +283,11 @@ func handleSearch(c *gin.Context) {
 
 	// If no name is provided, return the most recent user
 	if req.Name == "" {
-		users = getRecentUsers()
+		users, err := getRecentUsers()
+		if err != nil {
+			log.Error("Error getting recent users", "error", err)
+			users = []string{}
+		}
 		c.HTML(http.StatusOK, "partials/search.html", gin.H{
 			"users": users,
 		})

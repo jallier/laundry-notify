@@ -13,32 +13,26 @@
             when the next load load finishes
         </div>
         <div>
-            {{ if .lastLoad }}
+            {{ with .mostRecentEvent }}
+            <!-- {{ .StartedAt }} -->
             <div>
-                <h2>Last load</h2>
+                <h2>Most recent load</h2>
                 <div>
                     <div>
                         <span>Started:</span>
-                        <span>{{ .lastLoad.Started }}</span>
+                        <span>{{ .StartedAt.String }}</span>
                     </div>
                     <div>
                         <span>Ended:</span>
-                        <span>{{ .lastLoad.Ended }}</span>
+                        {{ if .FinishedAt.Valid }}
+                        <span>{{ .FinishedAt.String }}</span>
+                        {{ else }}
+                        <span>In Progress...</span>
+                        {{ end }}
                     </div>
-                </div>
-                {{ end }}
-                {{ if .currentLoad }}
-                <div>
-                    <h2>Current load</h2>
-                    <div>
-                        <div>
-                            <span>Started:</span>
-                            <span>{{ .currentLoad.Started }}</span>
-                        </div>
-                    </div>
-                    {{ end }}
                 </div>
             </div>
+            {{ end }}
             <div>
                 <div class="relative flex w-full max-w-[24rem]">
                     <form
