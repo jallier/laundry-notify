@@ -60,15 +60,23 @@ func main() {
 	create table if not exists users (
 		id integer not null primary key,
 		name text unique,
-		created_at datetime
+		created_at datetime not null
 	);
 
 	create table if not exists events (
 		id integer not null primary key,
-		type text,
+		type text not null,
 		started_at datetime not null,
 		finished_at datetime
-	)
+	);
+
+	create table if not exists user_events (
+		id integer not null primary key,
+		user_id integer not null,
+		event_id integer,
+		created_at datetime not null,
+		UNIQUE (user_id, event_id)
+	);
 	`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
@@ -192,15 +200,7 @@ func setupRouter() {
 	register := router.Group("/register")
 	{
 		register.POST("/", handleRegister)
-		register.GET("/", func(c *gin.Context) {
-			var query SearchRequest
-			c.Bind(&query)
-
-			c.HTML(http.StatusOK, "registered", gin.H{
-				"title": "Register",
-				"name":  query.Name,
-			})
-		})
+		register.GET("/", handleRegister)
 	}
 
 	router.Run()
@@ -236,7 +236,7 @@ func getRecentUsers() ([]string, error) {
 type Event struct {
 	Id         int
 	Type       string
-	StartedAt  sql.NullString
+	StartedAt  string
 	FinishedAt sql.NullString
 }
 
@@ -332,13 +332,78 @@ func handleRegister(c *gin.Context) {
 		log.Debug("User does not exist, adding", "name", name)
 		_, err = db.Exec("insert into users (name, created_at) values (?, datetime())", req.Name)
 		if err != nil {
-			// TODO: redirect to generic error page for these kinds of errors
-			log.Fatal("Error adding user", "error", err)
+			// TODO: add a flash message to the page for errors
+			log.Error("Error adding user", "error", err)
+			c.HTML(http.StatusOK, "register", gin.H{
+				"error": err,
+			})
 		}
 		log.Debug("User added", "name", name)
 	}
+	log.Info("Registering user interest")
+
+	// First get the most recent event
+	event, err := getMostRecentEvent()
+	if err != nil {
+		if err != sql.ErrNoRows {
+			log.Error("Error getting most recent event", "error", err)
+			c.HTML(http.StatusOK, "registered", gin.H{
+				"error": err,
+			})
+			return
+		}
+	}
+	// Now register the user for this event
+	// If the event is finished, register with a blank finished_at because we want to register for the next one
+	if event.FinishedAt.Valid {
+		log.Debug("Event is finished, registering for next one")
+		// First check if they have already registered for the next event
+		row := db.QueryRow("select id from user_events where user_id = (select id from users where name = ?) and event_id is null", name)
+		var id int
+		err := row.Scan(&id)
+		if err != nil {
+			if err != sql.ErrNoRows {
+				log.Error("Error scanning user event record", "error", err)
+				c.HTML(http.StatusOK, "registered", gin.H{
+					"error": err,
+				})
+				return
+			} else {
+				log.Debug("User has not registered for next event")
+			}
+		} else {
+			log.Debug("User has already registered for next event", "id", id)
+			c.HTML(http.StatusOK, "registered", gin.H{
+				"name":  name,
+				"event": event,
+			})
+			return
+		}
+
+		_, err = db.Exec("insert into user_events (user_id, created_at) values ((select id from users where name = ?), datetime())", name)
+		if err != nil {
+			log.Error("Error registering user for event", "error", err)
+			c.HTML(http.StatusOK, "registered", gin.H{
+				"error": err,
+			})
+			return
+		}
+	} else {
+		log.Debug("Event is not finished, registering for this one")
+		// TODO: replace datetimes like this with ISO 8601 format
+		_, err = db.Exec("insert into user_events (user_id, event_id, created_at) values ((select id from users where name = ?), ?, datetime())", name, event.Id)
+		if err != nil {
+			log.Error("Error registering user for event", "error", err)
+			c.HTML(http.StatusOK, "registered", gin.H{
+				"error": err,
+			})
+			return
+		}
+	}
+	log.Info("User registered for event", "name", name, "event", event)
 
 	c.HTML(http.StatusOK, "registered", gin.H{
-		"name": req.Name,
+		"name":  name,
+		"event": event,
 	})
 }

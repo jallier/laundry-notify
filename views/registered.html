@@ -7,5 +7,10 @@
 {{ end }}
 
 {{ define "content" }}
-Registered for next load, {{ .name }}
+<p>
+  Registered for next load, {{ .name }}
+</p>
+<p>
+  Load started at {{ .event.StartedAt }}
+</p>
 {{ end }}

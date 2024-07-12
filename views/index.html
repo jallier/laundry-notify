@@ -14,13 +14,12 @@
         </div>
         <div>
             {{ with .mostRecentEvent }}
-            <!-- {{ .StartedAt }} -->
             <div>
                 <h2>Most recent load</h2>
                 <div>
                     <div>
                         <span>Started:</span>
-                        <span>{{ .StartedAt.String }}</span>
+                        <span>{{ .StartedAt }}</span>
                     </div>
                     <div>
                         <span>Ended:</span>
