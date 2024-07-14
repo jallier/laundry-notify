@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -12,6 +13,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // What needs to happen:
@@ -20,6 +23,9 @@ import (
 // Home assistant will publish messages to this topic
 // If a user has registered interest, send the next 'finished' message to the ntfy topic + the users name
 // Delete the user's "interest"
+
+// The base URL for ntfy.sh
+const NTFY_URL = "https://ntfy.sh/LaundryTest"
 
 var db *sql.DB
 var isDev bool
@@ -166,8 +172,45 @@ func main() {
 				log.Error("Error updating event", "error", err)
 				continue
 			}
-			// stmt.Close()
 			log.Info("Event updated in db", "id", eventId, "topic", leafTopic, "message", message)
+
+			// Check the user events for any users registered for this event
+			rows, err := tx.Query("select users.name from users join user_events on users.id = user_events.user_id where user_events.event_id = ?", eventId)
+			if err != nil {
+				log.Error("Error querying for users registered for event", "error", err)
+				continue
+			}
+			for rows.Next() {
+				var user string
+				err := rows.Scan(&user)
+				if err != nil {
+					log.Error("Error scanning user record", "error", err)
+					continue
+				}
+				log.Debug("Sending notification to user", "user", user)
+				// Convert the username to something that can be used in a URL
+				username := strings.ReplaceAll(user, " ", "-")
+				ntfyFullUrl := fmt.Sprintf("%s-%s", NTFY_URL, username)
+				title := toTitleCase(leafTopic)
+				message := fmt.Sprintf("%s has finished", toTitleCase(leafTopic))
+				req, _ := http.NewRequest(
+					"POST",
+					ntfyFullUrl,
+					strings.NewReader(message),
+				)
+				req.Header.Set("Title", title)
+				res, err := http.DefaultClient.Do(req)
+				if err != nil {
+					log.Error("Error sending notification", "error", err)
+					continue
+				}
+				if res.StatusCode != 200 {
+					log.Error("Error sending notification", "status", res.StatusCode)
+					continue
+				}
+				log.Info("Notification sent", "user", user, "event", leafTopic, "ntfy_url", ntfyFullUrl)
+				res.Body.Close()
+			}
 		}
 
 		err = tx.Commit()
@@ -406,4 +449,8 @@ func handleRegister(c *gin.Context) {
 		"name":  name,
 		"event": event,
 	})
+}
+
+func toTitleCase(s string) string {
+	return cases.Title(language.English).String(s)
 }
