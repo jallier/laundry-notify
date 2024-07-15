@@ -1,11 +1,13 @@
-package main
+package laundryNotify
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/log"
 	MQTT "github.com/eclipse/paho.mqtt.golang"
@@ -453,4 +455,21 @@ func handleRegister(c *gin.Context) {
 
 func toTitleCase(s string) string {
 	return cases.Title(language.English).String(s)
+}
+
+type User struct {
+	Id        int
+	Name      string
+	CreatedAt time.Time
+}
+
+type UserFilter struct {
+	Id     *int
+	Name   *string
+	Limit  int
+	Offset int
+}
+
+type UserService interface {
+	FindUserById(ctx context.Context, id int) (*User, error)
 }
