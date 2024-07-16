@@ -27,6 +27,44 @@ func (s *UserService) FindUserById(ctx context.Context, id int) (*laundryNotify.
 	return user, nil
 }
 
+func (s *UserService) CreateUser(ctx context.Context, user *laundryNotify.User) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := createUser(ctx, tx, user); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func createUser(ctx context.Context, tx *Tx, user *laundryNotify.User) error {
+	user.CreatedAt = tx.now
+
+	if err := user.Validate(); err != nil {
+		return err
+	}
+
+	res, err := tx.ExecContext(ctx, `
+		INSERT INTO users (name, created_at)
+		VALUES (?, ?)
+	`, user.Name, user.CreatedAt)
+	if err != nil {
+		return err
+	}
+
+	id, err := res.LastInsertId()
+	if err != nil {
+		return err
+	}
+	user.Id = int(id)
+
+	return nil
+}
+
 // findUserByID is a helper function to fetch a user by ID.
 // Returns ENOTFOUND if user does not exist.
 func findUserById(ctx context.Context, tx *Tx, id int) (*laundryNotify.User, error) {

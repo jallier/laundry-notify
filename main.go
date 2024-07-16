@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/log"
 	MQTT "github.com/eclipse/paho.mqtt.golang"
@@ -455,12 +454,6 @@ func handleRegister(c *gin.Context) {
 
 func toTitleCase(s string) string {
 	return cases.Title(language.English).String(s)
-}
-
-type User struct {
-	Id        int
-	Name      string
-	CreatedAt time.Time
 }
 
 type UserFilter struct {
