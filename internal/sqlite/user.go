@@ -4,12 +4,21 @@ import (
 	"context"
 	laundryNotify "jallier/laundry-notify"
 	"strings"
+
+	"github.com/charmbracelet/log"
 )
 
+// Ensure service implements interface.
 var _ laundryNotify.UserService = (*UserService)(nil)
 
+// UserService represents a service for managing users.
 type UserService struct {
 	db *DB
+}
+
+// NewUserService returns a new instance of UserService.
+func NewUserService(db *DB) *UserService {
+	return &UserService{db: db}
 }
 
 // FindUserByID retrieves a user by ID along with their associated auth objects.
@@ -17,6 +26,7 @@ type UserService struct {
 func (s *UserService) FindUserById(ctx context.Context, id int) (*laundryNotify.User, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
+		log.Error("failed to begin transaction", "error", err)
 		return nil, err
 	}
 	defer tx.Rollback()
@@ -51,7 +61,10 @@ func createUser(ctx context.Context, tx *Tx, user *laundryNotify.User) error {
 	res, err := tx.ExecContext(ctx, `
 		INSERT INTO users (name, created_at)
 		VALUES (?, ?)
-	`, user.Name, user.CreatedAt)
+	`,
+		user.Name,
+		(*NullTime)(&user.CreatedAt),
+	)
 	if err != nil {
 		return err
 	}
@@ -94,7 +107,7 @@ func findUsers(ctx context.Context, tx *Tx, filter laundryNotify.UserFilter) (_ 
 		SELECT 
 			id, 
 			name, 
-			created_at 
+			created_at,
 			COUNT(*) OVER()
 		FROM users 
 		WHERE `+strings.Join(where, " AND ")+`
@@ -107,7 +120,7 @@ func findUsers(ctx context.Context, tx *Tx, filter laundryNotify.UserFilter) (_ 
 	}
 	defer rows.Close()
 
-	users := []*laundryNotify.User{}
+	users := make([]*laundryNotify.User, 0)
 	for rows.Next() {
 		var user laundryNotify.User
 		if err := rows.Scan(

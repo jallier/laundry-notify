@@ -78,6 +78,22 @@ func (m *Main) Run(ctx context.Context) (err error) {
 	// This is where the application logic would go
 	// For now, we just print the config
 	log.Debug("config: ", "config", m.Config)
+
+	m.DB.DSN = m.Config.DB.DSN
+	if err := m.DB.Open(); err != nil {
+		log.Error("failed to open db", "error", err)
+		return err
+	}
+
+	userService := sqlite.NewUserService(m.DB)
+	// This is just testing for now
+	user, err := userService.FindUserById(ctx, 1)
+	if err != nil {
+		log.Error("failed to find user", "error", err)
+	}
+
+	log.Debug("user", "user", user)
+
 	return nil
 }
 

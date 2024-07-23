@@ -185,14 +185,21 @@ type NullTime time.Time
 
 // Scan reads a time value from the database.
 func (n *NullTime) Scan(value interface{}) error {
-	if value == nil {
+	switch v := value.(type) {
+	case time.Time:
+		// Handle the case where the time is already a time.Time.
+		*(*time.Time)(n) = v
+		return nil
+	case string:
+		*(*time.Time)(n), _ = time.Parse(time.RFC3339, v)
+		return nil
+	case nil:
 		*(*time.Time)(n) = time.Time{}
 		return nil
-	} else if value, ok := value.(string); ok {
-		*(*time.Time)(n), _ = time.Parse(time.RFC3339, value)
-		return nil
+	default:
+		return fmt.Errorf("NullTime: cannot scan to time.Time: %T", value)
 	}
-	return fmt.Errorf("NullTime: cannot scan to time.Time: %T", value)
+
 }
 
 // Value formats a time value for the database.
@@ -200,7 +207,8 @@ func (n *NullTime) Value() (driver.Value, error) {
 	if n == nil || (*time.Time)(n).IsZero() {
 		return nil, nil
 	}
-	return (*time.Time)(n).UTC().Format(time.RFC3339), nil
+	timeStr := (*time.Time)(n).UTC().Format(time.RFC3339)
+	return timeStr, nil
 }
 
 // FormatLimitOffset returns a SQL string for a given limit & offset.
