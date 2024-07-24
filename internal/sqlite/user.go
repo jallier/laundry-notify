@@ -21,7 +21,7 @@ func NewUserService(db *DB) *UserService {
 	return &UserService{db: db}
 }
 
-// FindUserByID retrieves a user by ID along with their associated auth objects.
+// FindUserByID retrieves a user by ID.
 // Returns ENOTFOUND if user does not exist.
 func (s *UserService) FindUserById(ctx context.Context, id int) (*laundryNotify.User, error) {
 	tx, err := s.db.BeginTx(ctx, nil)

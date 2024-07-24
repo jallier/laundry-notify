@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/log"
 	MQTT "github.com/eclipse/paho.mqtt.golang"
@@ -277,13 +278,6 @@ func getRecentUsers() ([]string, error) {
 	return users, nil
 }
 
-type Event struct {
-	Id         int
-	Type       string
-	StartedAt  string
-	FinishedAt sql.NullString
-}
-
 func getMostRecentEvent() (*Event, error) {
 	row := db.QueryRow("SELECT id, type, started_at, finished_at FROM events ORDER BY MAX(started_at, IFNULL(finished_at, started_at)) DESC")
 	var event Event
@@ -399,7 +393,7 @@ func handleRegister(c *gin.Context) {
 	}
 	// Now register the user for this event
 	// If the event is finished, register with a blank finished_at because we want to register for the next one
-	if event.FinishedAt.Valid {
+	if event.FinishedAt.IsZero() {
 		log.Debug("Event is finished, registering for next one")
 		// First check if they have already registered for the next event
 		row := db.QueryRow("select id from user_events where user_id = (select id from users where name = ?) and event_id is null", name)
@@ -465,4 +459,24 @@ type UserFilter struct {
 
 type UserService interface {
 	FindUserById(ctx context.Context, id int) (*User, error)
+}
+
+type Event struct {
+	Id         int
+	Type       string
+	StartedAt  time.Time
+	FinishedAt time.Time
+	// StartedAt  sql.NullTime
+	// FinishedAt sql.NullTime
+}
+
+type EventFilter struct {
+	Id     *int
+	Limit  int
+	Offset int
+}
+
+type EventService interface {
+	FindEventById(ctx context.Context, userId int) (*Event, error)
+	FindMostRecentEvent(ctx context.Context, userId int) (*Event, error)
 }
