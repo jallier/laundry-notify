@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/log"
 	MQTT "github.com/eclipse/paho.mqtt.golang"
@@ -461,15 +460,6 @@ type UserService interface {
 	FindUserById(ctx context.Context, id int) (*User, error)
 }
 
-type Event struct {
-	Id         int
-	Type       string
-	StartedAt  time.Time
-	FinishedAt time.Time
-	// StartedAt  sql.NullTime
-	// FinishedAt sql.NullTime
-}
-
 type EventFilter struct {
 	Id     *int
 	Limit  int
@@ -479,4 +469,12 @@ type EventFilter struct {
 type EventService interface {
 	FindEventById(ctx context.Context, userId int) (*Event, error)
 	FindMostRecentEvent(ctx context.Context, userId int) (*Event, error)
+}
+
+type UserEventFilter struct {
+	Id *int
+}
+
+type UserEventService interface {
+	FindUserEventById(ctx context.Context, id int) (*UserEvent, error)
 }

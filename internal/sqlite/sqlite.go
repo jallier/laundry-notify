@@ -12,9 +12,11 @@ import (
 	"slices"
 	"time"
 
+	"github.com/charmbracelet/log"
 	_ "github.com/mattn/go-sqlite3"
 )
 
+//go:embed migration/*.sql
 var migrationFS embed.FS
 
 type DB struct {
@@ -89,6 +91,7 @@ func (db *DB) Open() (err error) {
 // is not re-executed. Migrations run in a transaction to prevent partial
 // migrations.
 func (db *DB) migrate() error {
+	log.Debug("migrating database...")
 	// Ensure the 'migrations' table exists so we don't duplicate migrations.
 	if _, err := db.db.Exec(`CREATE TABLE IF NOT EXISTS migrations (name TEXT PRIMARY KEY);`); err != nil {
 		return fmt.Errorf("cannot create migrations table: %w", err)
@@ -127,6 +130,7 @@ func (db *DB) migrateFile(name string) error {
 	} else if n != 0 {
 		return nil // already run migration, skip
 	}
+	log.Debug("migrating file", "name", name)
 
 	// Read and execute migration file.
 	if buf, err := fs.ReadFile(migrationFS, name); err != nil {

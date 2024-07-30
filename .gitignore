@@ -25,3 +25,5 @@ tmp/
 *.db
 *.sqlite
 laundry-notify
+*.db-shm
+*.db-wal

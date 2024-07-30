@@ -35,7 +35,33 @@ func (s *EventService) FindMostRecentEvent(ctx context.Context, userId int) (*la
 }
 
 func (s *EventService) CreateEvent(ctx context.Context, event *laundryNotify.Event) error {
-	return nil
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := createEvent(ctx, tx, event); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func createEvent(ctx context.Context, tx *Tx, event *laundryNotify.Event) error {
+	if err := event.Validate(); err != nil {
+		return err
+	}
+
+	_, err := tx.ExecContext(
+		ctx,
+		`
+		INSERT INTO events (type, started_at, finished_at) 
+		VALUES (?, ?, ?)
+		`,
+		event.Type, event.StartedAt, event.FinishedAt,
+	)
+	return err
 }
 
 func findEventById(ctx context.Context, tx *Tx, id int) (*laundryNotify.Event, error) {

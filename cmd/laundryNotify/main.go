@@ -87,6 +87,7 @@ func (m *Main) Run(ctx context.Context) (err error) {
 
 	userService := sqlite.NewUserService(m.DB)
 	eventService := sqlite.NewEventService(m.DB)
+	userEventService := sqlite.NewUserEventService(m.DB)
 
 	// This is just testing for now
 	user, err := userService.FindUserById(ctx, 1)
@@ -95,11 +96,33 @@ func (m *Main) Run(ctx context.Context) (err error) {
 	}
 	log.Debug("user", "user", user)
 
+	// create := &laundryNotify.Event{
+	// 	Type:       "washer",
+	// 	StartedAt:  time.Now(),
+	// 	FinishedAt: time.Now(),
+	// }
+	// eventService.CreateEvent(ctx, create)
+
 	event, err := eventService.FindEventById(ctx, 1)
 	if err != nil {
 		log.Error("failed to find event", "error", err)
 	}
 	log.Debug("event", "event", event)
+
+	// create2 := &laundryNotify.UserEvent{
+	// 	UserId:    user.Id,
+	// 	EventId:   event.Id,
+	// 	CreatedAt: time.Now(),
+	// }
+	// err = userEventService.CreateUserEvent(ctx, create2)
+	if err != nil {
+		log.Error("failed to create user event", "error", err)
+	}
+	userEvent, err := userEventService.FindUserEventById(ctx, 1)
+	if err != nil {
+		log.Error("failed to find user event", "error", err)
+	}
+	log.Debug("user event", "user event", userEvent)
 
 	return nil
 }
