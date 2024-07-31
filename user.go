@@ -1,6 +1,9 @@
 package laundryNotify
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 type User struct {
 	Id        int
@@ -13,4 +16,15 @@ func (u *User) Validate() error {
 		return Errorf(EINVALID, "User name required.")
 	}
 	return nil
+}
+
+type UserFilter struct {
+	Id     *int
+	Name   *string
+	Limit  int
+	Offset int
+}
+
+type UserService interface {
+	FindUserById(ctx context.Context, id int) (*User, error)
 }

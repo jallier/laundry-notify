@@ -1,6 +1,7 @@
 package main
 
 import (
+	"jallier/laundry-notify/internal/mqtt"
 	"jallier/laundry-notify/internal/sqlite"
 	"os"
 	"os/signal"
@@ -30,7 +31,7 @@ func main() {
 	if env == "dev" || env == "development" {
 		log.SetLevel(log.DebugLevel)
 	}
-	SetConfigFromEnv(&m.Config)
+	SetConfigFromEnv(m.Config)
 
 	// Execute the application
 	if err := m.Run(ctx); err != nil {
@@ -51,14 +52,16 @@ func main() {
 
 type Main struct {
 	DB     *sqlite.DB
-	Config Config
+	MQTT   *mqtt.MQTTManager
+	Config *Config
 }
 
 // Returns a new instance of Main
 func NewMain() *Main {
 	return &Main{
 		DB:     sqlite.NewDB(""),
-		Config: *DefaultConfig(),
+		MQTT:   mqtt.NewMQTTManager(),
+		Config: DefaultConfig(),
 	}
 }
 
@@ -70,24 +73,45 @@ func (m *Main) Close() error {
 		}
 	}
 
+	if m.MQTT != nil {
+		m.MQTT.Disconnect()
+	}
+
 	return nil
 }
 
 // Run starts the application. The config must be loaded before calling this method
 func (m *Main) Run(ctx context.Context) (err error) {
-	// This is where the application logic would go
-	// For now, we just print the config
 	log.Debug("config: ", "config", m.Config)
 
+	// Set up the main root dependencies
 	m.DB.DSN = m.Config.DB.DSN
 	if err := m.DB.Open(); err != nil {
 		log.Error("failed to open db", "error", err)
 		return err
 	}
 
+	mqttOpts := mqtt.NewMqttOpts()
+	mqttOpts.AddBroker(m.Config.MQTT.URL)
+	mqttOpts.SetClientID(m.Config.MQTT.ClientId)
+	mqttOpts.SetUsername(m.Config.MQTT.Username)
+	mqttOpts.SetPassword(m.Config.MQTT.Password)
+
+	m.MQTT.MqttOpts = mqttOpts
+	token, err := m.MQTT.Connect()
+	if err != nil {
+		log.Error("failed to connect to mqtt broker", "error", err)
+		return err
+	}
+	log.Debug("token", "token", token)
+
+	// Set up the services using the root dependencies
 	userService := sqlite.NewUserService(m.DB)
 	eventService := sqlite.NewEventService(m.DB)
 	userEventService := sqlite.NewUserEventService(m.DB)
+
+	laundrySubscriberService := mqtt.NewLaundrySubscriberService(m.MQTT)
+	laundrySubscriberService.Subscribe(m.Config.MQTT.topic)
 
 	// This is just testing for now
 	user, err := userService.FindUserById(ctx, 1)

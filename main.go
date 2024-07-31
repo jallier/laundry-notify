@@ -449,17 +449,6 @@ func toTitleCase(s string) string {
 	return cases.Title(language.English).String(s)
 }
 
-type UserFilter struct {
-	Id     *int
-	Name   *string
-	Limit  int
-	Offset int
-}
-
-type UserService interface {
-	FindUserById(ctx context.Context, id int) (*User, error)
-}
-
 type EventFilter struct {
 	Id     *int
 	Limit  int
