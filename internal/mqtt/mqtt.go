@@ -51,3 +51,16 @@ func (m *MQTTManager) Connect() (MQTT.Token, error) {
 func (m *MQTTManager) Disconnect() {
 	(*m.mqttClient).Disconnect(250)
 }
+
+func (m *MQTTManager) Subscribe(topic string, eventChannel chan<- [2]string) error {
+	log.Debug("Subscribing to MQTT topic...", "topic", topic)
+	token := (*m.mqttClient).Subscribe(topic, byte(0), func(client MQTT.Client, msg MQTT.Message) {
+		eventChannel <- [2]string{msg.Topic(), string(msg.Payload())}
+	})
+	token.Wait()
+	if err := token.Error(); err != nil {
+		log.Error("Error subscribing to MQTT topic: %v", token.Error())
+		return err
+	}
+	return nil
+}

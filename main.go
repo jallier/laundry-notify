@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/log"
 	MQTT "github.com/eclipse/paho.mqtt.golang"
@@ -450,14 +451,18 @@ func toTitleCase(s string) string {
 }
 
 type EventFilter struct {
-	Id     *int
-	Limit  int
-	Offset int
+	Id         *int
+	Type       *string
+	StartedAt  time.Time
+	FinishedAt time.Time
+	Limit      int
+	Offset     int
+	OrderBy    []string
 }
 
 type EventService interface {
 	FindEventById(ctx context.Context, userId int) (*Event, error)
-	FindMostRecentEvent(ctx context.Context, userId int) (*Event, error)
+	FindMostRecentEvent(ctx context.Context, eventType string) (*Event, error)
 }
 
 type UserEventFilter struct {

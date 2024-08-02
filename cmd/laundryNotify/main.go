@@ -98,19 +98,21 @@ func (m *Main) Run(ctx context.Context) (err error) {
 	mqttOpts.SetPassword(m.Config.MQTT.Password)
 
 	m.MQTT.MqttOpts = mqttOpts
-	token, err := m.MQTT.Connect()
+	_, err = m.MQTT.Connect()
 	if err != nil {
 		log.Error("failed to connect to mqtt broker", "error", err)
 		return err
 	}
-	log.Debug("token", "token", token)
 
 	// Set up the services using the root dependencies
 	userService := sqlite.NewUserService(m.DB)
 	eventService := sqlite.NewEventService(m.DB)
 	userEventService := sqlite.NewUserEventService(m.DB)
 
-	laundrySubscriberService := mqtt.NewLaundrySubscriberService(m.MQTT)
+	laundrySubscriberService := mqtt.NewLaundrySubscriberService(
+		m.MQTT,
+		eventService,
+	)
 	laundrySubscriberService.Subscribe(m.Config.MQTT.topic)
 
 	// This is just testing for now

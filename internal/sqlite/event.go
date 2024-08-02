@@ -30,8 +30,17 @@ func (s *EventService) FindEventById(ctx context.Context, id int) (*laundryNotif
 	return event, nil
 }
 
-func (s *EventService) FindMostRecentEvent(ctx context.Context, userId int) (*laundryNotify.Event, error) {
-	return nil, nil
+func (s *EventService) FindMostRecentEvent(ctx context.Context, eventType string) (*laundryNotify.Event, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	event, err := findMostReventEvent(ctx, tx, eventType)
+	if err != nil {
+		return nil, err
+	}
+	return event, nil
 }
 
 func (s *EventService) CreateEvent(ctx context.Context, event *laundryNotify.Event) error {
@@ -65,21 +74,51 @@ func createEvent(ctx context.Context, tx *Tx, event *laundryNotify.Event) error 
 }
 
 func findEventById(ctx context.Context, tx *Tx, id int) (*laundryNotify.Event, error) {
-	a, _, err := findEvents(ctx, tx, laundryNotify.EventFilter{Id: &id})
+	events, _, err := findEvents(ctx, tx, laundryNotify.EventFilter{Id: &id})
 	if err != nil {
 		return nil, err
 	}
-	if len(a) == 0 {
+	if len(events) == 0 {
 		return nil, laundryNotify.Errorf(laundryNotify.ENOTFOUND, "Event not found: %d", id)
 	}
-	return a[0], nil
+	return events[0], nil
+}
+
+func findMostReventEvent(ctx context.Context, tx *Tx, eventType string) (*laundryNotify.Event, error) {
+	events, _, err := findEvents(
+		ctx,
+		tx,
+		laundryNotify.EventFilter{
+			Type:    &eventType,
+			OrderBy: []string{"started_at DESC"},
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	if len(events) == 0 {
+		return nil, nil
+	}
+	return events[0], nil
 }
 
 func findEvents(ctx context.Context, tx *Tx, filter laundryNotify.EventFilter) (_ []*laundryNotify.Event, n int, err error) {
 	// Build WHERE clause
-	where, args := []string{"1 = 1"}, []interface{}{}
+	where, whereArgs := []string{"1 = 1"}, []interface{}{}
 	if v := filter.Id; v != nil {
-		where, args = append(where, "id = ?"), append(args, *v)
+		where, whereArgs = append(where, "id = ?"), append(whereArgs, *v)
+	} else if v := filter.Type; v != nil {
+		where, whereArgs = append(where, "type = ?"), append(whereArgs, *v)
+	} else if v := filter.StartedAt; !v.IsZero() {
+		where, whereArgs = append(where, "started_at = ?"), append(whereArgs, &v)
+	} else if v := filter.FinishedAt; !v.IsZero() {
+		where, whereArgs = append(where, "finished_at = ?"), append(whereArgs, &v)
+	}
+
+	// Build ORDER BY clause
+	orderBy := []string{"id"}
+	if filter.OrderBy != nil {
+		orderBy = filter.OrderBy
 	}
 
 	rows, err := tx.QueryContext(ctx, `
@@ -91,9 +130,9 @@ func findEvents(ctx context.Context, tx *Tx, filter laundryNotify.EventFilter) (
 			COUNT(*) OVER()
 		FROM events
 		WHERE `+strings.Join(where, " AND ")+`
-		ORDER BY id
+		`+FormatOrderBy(orderBy)+`
 		`+FormatLimitOffset(filter.Limit, filter.Offset),
-		args...,
+		whereArgs...,
 	)
 	if err != nil {
 		return nil, n, err

@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -226,6 +227,14 @@ func FormatLimitOffset(limit, offset int) string {
 		return fmt.Sprintf(`OFFSET %d`, offset)
 	}
 	return ""
+}
+
+func FormatOrderBy(orderBy []string) string {
+	if len(orderBy) == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("ORDER BY %s", strings.Join(orderBy, ", "))
 }
 
 // FormatError returns err as a WTF error, if possible.
