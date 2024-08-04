@@ -1,6 +1,7 @@
 package mqtt
 
 import (
+	"database/sql"
 	laundryNotify "jallier/laundry-notify"
 	"strings"
 	"time"
@@ -45,7 +46,7 @@ func (s *LaundrySubscriberService) Subscribe(topic string) {
 			case "started_at":
 				s.addNewEvent(leafTopic, messageValue)
 			case "finished_at":
-				log.Debug("Event finished", "topic", leafTopic, "finished_at", messageValue)
+				s.finishExistingEvent(leafTopic, messageValue)
 			}
 		}
 	}()
@@ -58,7 +59,7 @@ func (s *LaundrySubscriberService) addNewEvent(eventType string, startedAtTimest
 		return err
 	}
 
-	log.Debug("New event", "type", eventType, "started_at", startedAt)
+	log.Info("New event received", "type", eventType, "started_at", startedAt)
 
 	// Check if we have an existing event of the same type that hasn't been finished - this means we should just skip this event since its likely a doubleup of the same event
 	result, err := s.eventService.FindMostRecentEvent(s.mqtt.ctx, eventType)
@@ -67,13 +68,55 @@ func (s *LaundrySubscriberService) addNewEvent(eventType string, startedAtTimest
 		return err
 	}
 	log.Debug("Most recent event", "result", result)
-	if result == nil || !result.FinishedAt.IsZero() {
-		log.Debug("No existing event found, inserting new event")
+	if result == nil || !result.FinishedAt.Valid {
+		log.Debug("No existing unfinished event found, inserting new event")
+		err := s.eventService.CreateEvent(s.mqtt.ctx, &laundryNotify.Event{
+			Type:      eventType,
+			StartedAt: sql.NullTime{Time: startedAt, Valid: true},
+		})
+		if err != nil {
+			log.Error("Error creating new event", "error", err)
+			return err
+		}
+		log.Info("New event inserted", "type", eventType, "started_at", startedAt)
 	} else {
-		log.Debug("existing event found, skipping")
+		log.Info("existing event found, skipping")
+		return nil
 	}
 
 	return nil
 }
 
-func finishExistingEvent(eventType string, startedAt time.Time) {}
+func (s *LaundrySubscriberService) finishExistingEvent(eventType string, finishedAtTimestamp string) error {
+	finishedAt, err := time.Parse(time.RFC3339, finishedAtTimestamp)
+	if err != nil {
+		log.Error("Error parsing finished_at timestamp", "error", err)
+		return err
+	}
+
+	log.Info("New event received", "type", eventType, "finished_at", finishedAt)
+
+	// Check if we have an existing event of the same type that hasn't been finished - this means we should just skip this event since its likely a doubleup of the same event
+	result, err := s.eventService.FindMostRecentEvent(s.mqtt.ctx, eventType)
+	if err != nil {
+		log.Error("Error finding most recent event", "error", err)
+		return err
+	}
+	log.Debug("Most recent event", "result", result)
+	if !result.FinishedAt.Valid {
+		log.Debug("Existing unfinished event found, updating event")
+		_, err := s.eventService.UpdateEvent(s.mqtt.ctx, result.Id, laundryNotify.EventUpdate{
+			FinishedAt: sql.NullTime{Time: finishedAt, Valid: true},
+		})
+		if err != nil {
+			log.Error("Error updating existing event", "error", err)
+			return err
+		}
+		log.Info("Existing event updated", "type", eventType, "finished_at", finishedAt)
+	} else {
+		log.Info("No existing unfinished event found, skipping")
+		return nil
+	}
+
+	return nil
+}

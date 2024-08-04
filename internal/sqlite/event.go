@@ -36,7 +36,7 @@ func (s *EventService) FindMostRecentEvent(ctx context.Context, eventType string
 		return nil, err
 	}
 	defer tx.Rollback()
-	event, err := findMostReventEvent(ctx, tx, eventType)
+	event, err := findMostRecentEvent(ctx, tx, eventType)
 	if err != nil {
 		return nil, err
 	}
@@ -55,6 +55,52 @@ func (s *EventService) CreateEvent(ctx context.Context, event *laundryNotify.Eve
 	}
 
 	return tx.Commit()
+}
+
+func (s *EventService) UpdateEvent(ctx context.Context, id int, upd laundryNotify.EventUpdate) (*laundryNotify.Event, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	event, err := updateEvent(ctx, tx, id, upd)
+	if err != nil {
+		return event, err
+	}
+
+	return event, tx.Commit()
+}
+
+func updateEvent(ctx context.Context, tx *Tx, id int, upd laundryNotify.EventUpdate) (*laundryNotify.Event, error) {
+	event, err := findEventById(ctx, tx, id)
+	if err != nil {
+		return event, err
+	}
+
+	if v := upd.FinishedAt; v.Valid {
+		event.FinishedAt = v
+	}
+
+	if err := event.Validate(); err != nil {
+		return event, err
+	}
+
+	_, err = tx.ExecContext(
+		ctx,
+		`
+		UPDATE events
+		SET finished_at = ?
+		WHERE id = ?
+		`,
+		(*NullTime)(&event.FinishedAt),
+		event.Id,
+	)
+	if err != nil {
+		return event, err
+	}
+
+	return event, nil
 }
 
 func createEvent(ctx context.Context, tx *Tx, event *laundryNotify.Event) error {
@@ -84,7 +130,7 @@ func findEventById(ctx context.Context, tx *Tx, id int) (*laundryNotify.Event, e
 	return events[0], nil
 }
 
-func findMostReventEvent(ctx context.Context, tx *Tx, eventType string) (*laundryNotify.Event, error) {
+func findMostRecentEvent(ctx context.Context, tx *Tx, eventType string) (*laundryNotify.Event, error) {
 	events, _, err := findEvents(
 		ctx,
 		tx,

@@ -2,13 +2,13 @@ package laundryNotify
 
 import (
 	"context"
-	"time"
+	"database/sql"
 )
 
 type User struct {
 	Id        int
 	Name      string
-	CreatedAt time.Time
+	CreatedAt sql.NullTime
 }
 
 func (u *User) Validate() error {

@@ -1,12 +1,14 @@
 package laundryNotify
 
-import "time"
+import (
+	"database/sql"
+)
 
 type Event struct {
 	Id         int
 	Type       string
-	StartedAt  time.Time
-	FinishedAt time.Time
+	StartedAt  sql.NullTime
+	FinishedAt sql.NullTime
 }
 
 func (e *Event) Validate() error {
@@ -14,13 +16,18 @@ func (e *Event) Validate() error {
 		return Errorf(EINVALID, "Event type required.")
 	}
 
-	if e.StartedAt.IsZero() {
+	if !e.StartedAt.Valid || e.StartedAt.Time.IsZero() {
 		return Errorf(EINVALID, "Event start time required.")
 	}
 
-	if e.FinishedAt.IsZero() {
-		return Errorf(EINVALID, "Event finish time required.")
-	}
+	// if e.FinishedAt.IsZero() {
+	// 	return Errorf(EINVALID, "Event finish time required.")
+	// }
 
 	return nil
+}
+
+// Represents a set of fields to update on an event
+type EventUpdate struct {
+	FinishedAt sql.NullTime
 }

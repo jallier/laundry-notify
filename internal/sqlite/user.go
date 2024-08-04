@@ -52,7 +52,7 @@ func (s *UserService) CreateUser(ctx context.Context, user *laundryNotify.User) 
 }
 
 func createUser(ctx context.Context, tx *Tx, user *laundryNotify.User) error {
-	user.CreatedAt = tx.now
+	user.CreatedAt.Time = tx.now
 
 	if err := user.Validate(); err != nil {
 		return err

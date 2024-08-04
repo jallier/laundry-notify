@@ -186,20 +186,24 @@ type Tx struct {
 
 // NullTime represents a helper wrapper for time.Time. It automatically converts
 // time fields to/from RFC 3339 format. Also supports NULL for zero time.
-type NullTime time.Time
+// type NullTime time.Time
+type NullTime sql.NullTime
 
 // Scan reads a time value from the database.
 func (n *NullTime) Scan(value interface{}) error {
 	switch v := value.(type) {
 	case time.Time:
 		// Handle the case where the time is already a time.Time.
-		*(*time.Time)(n) = v
+		// *(*time.Time)(n) = v
+		(*sql.NullTime)(n).Time = v
+		n.Valid = true
 		return nil
 	case string:
-		*(*time.Time)(n), _ = time.Parse(time.RFC3339, v)
+		(*sql.NullTime)(n).Time, _ = time.Parse(time.RFC3339, v)
+		n.Valid = true
 		return nil
 	case nil:
-		*(*time.Time)(n) = time.Time{}
+		(*sql.NullTime)(n).Valid = false
 		return nil
 	default:
 		return fmt.Errorf("NullTime: cannot scan to time.Time: %T", value)
@@ -209,10 +213,10 @@ func (n *NullTime) Scan(value interface{}) error {
 
 // Value formats a time value for the database.
 func (n *NullTime) Value() (driver.Value, error) {
-	if n == nil || (*time.Time)(n).IsZero() {
+	if n == nil || ((*sql.NullTime)(n).Valid && (*sql.NullTime)(n).Time.IsZero()) {
 		return nil, nil
 	}
-	timeStr := (*time.Time)(n).UTC().Format(time.RFC3339)
+	timeStr := (*sql.NullTime)(n).Time.UTC().Format(time.RFC3339)
 	return timeStr, nil
 }
 
