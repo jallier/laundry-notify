@@ -473,4 +473,5 @@ type UserEventFilter struct {
 
 type UserEventService interface {
 	FindUserEventById(ctx context.Context, id int) (*UserEvent, error)
+	FindUserNamesByEventId(ctx context.Context, eventId int) ([]string, error)
 }

@@ -30,6 +30,19 @@ func (s *UserEventService) FindUserEventById(ctx context.Context, id int) (*laun
 	return event, nil
 }
 
+func (s *UserEventService) FindUserNamesByEventId(ctx context.Context, eventId int) ([]string, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	events, err := findUserNamesEventByEventId(ctx, tx, eventId)
+	if err != nil {
+		return nil, err
+	}
+	return events, nil
+}
+
 func (s *UserEventService) CreateUserEvent(ctx context.Context, userEvent *laundryNotify.UserEvent) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -69,6 +82,34 @@ func findUserEventById(ctx context.Context, tx *Tx, id int) (*laundryNotify.User
 		return nil, laundryNotify.Errorf(laundryNotify.ENOTFOUND, "UserEvent not found: %d", id)
 	}
 	return a[0], nil
+}
+
+func findUserNamesEventByEventId(ctx context.Context, tx *Tx, eventId int) ([]string, error) {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT 
+			u.name
+		FROM 
+			user_events ue
+		JOIN 
+			users u ON u.id = ue.user_id
+		WHERE 
+			ue.event_id = ?
+		`, eventId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var name []string
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
+			return nil, err
+		}
+		name = append(name, n)
+	}
+
+	return name, nil
 }
 
 func findUserEvents(ctx context.Context, tx *Tx, filter laundryNotify.UserEventFilter) (_ []*laundryNotify.UserEvent, n int, err error) {

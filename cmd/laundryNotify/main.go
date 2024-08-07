@@ -2,6 +2,7 @@ package main
 
 import (
 	"jallier/laundry-notify/internal/mqtt"
+	"jallier/laundry-notify/internal/ntfy"
 	"jallier/laundry-notify/internal/sqlite"
 	"os"
 	"os/signal"
@@ -53,6 +54,7 @@ func main() {
 type Main struct {
 	DB     *sqlite.DB
 	MQTT   *mqtt.MQTTManager
+	Ntfy   *ntfy.NtfyManager
 	Config *Config
 }
 
@@ -61,6 +63,7 @@ func NewMain() *Main {
 	return &Main{
 		DB:     sqlite.NewDB(""),
 		MQTT:   mqtt.NewMQTTManager(),
+		Ntfy:   ntfy.NewNtfyManager("", nil),
 		Config: DefaultConfig(),
 	}
 }
@@ -104,14 +107,29 @@ func (m *Main) Run(ctx context.Context) (err error) {
 		return err
 	}
 
+	if m.Config.Ntfy.NtfyServer == "" {
+		m.Config.Ntfy.NtfyServer = "https://ntfy.sh"
+	}
+	m.Ntfy.NtfyServer = m.Config.Ntfy.NtfyServer
+	m.Ntfy.BaseTopic = m.Config.Ntfy.BaseTopic
+	err = m.Ntfy.Connect()
+	if err != nil {
+		log.Error("failed to connect to ntfy server", "error", err)
+		return err
+	}
+
 	// Set up the services using the root dependencies
 	userService := sqlite.NewUserService(m.DB)
 	eventService := sqlite.NewEventService(m.DB)
 	userEventService := sqlite.NewUserEventService(m.DB)
 
+	ntfyService := ntfy.NewLaundryNotifyService(m.Ntfy)
+
 	laundrySubscriberService := mqtt.NewLaundrySubscriberService(
 		m.MQTT,
 		eventService,
+		userEventService,
+		ntfyService,
 	)
 	laundrySubscriberService.Subscribe(m.Config.MQTT.topic)
 
@@ -167,6 +185,10 @@ type Config struct {
 	DB struct {
 		DSN string
 	}
+	Ntfy struct {
+		NtfyServer string
+		BaseTopic  string
+	}
 }
 
 // DefaultConfig returns a new instance of Config with default values
@@ -184,4 +206,6 @@ func SetConfigFromEnv(config *Config) {
 	config.MQTT.Username = os.Getenv("MQTT_USERNAME")
 	config.MQTT.Password = os.Getenv("MQTT_PASSWORD")
 	config.MQTT.topic = os.Getenv("MQTT_TOPIC")
+	config.Ntfy.NtfyServer = os.Getenv("NTFY_SERVER")
+	config.Ntfy.BaseTopic = os.Getenv("NTFY_BASE_TOPIC")
 }
