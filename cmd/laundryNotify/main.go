@@ -6,6 +6,7 @@ import (
 	"jallier/laundry-notify/internal/sqlite"
 	"os"
 	"os/signal"
+	"syscall"
 
 	"github.com/charmbracelet/log"
 	"github.com/joho/godotenv"
@@ -18,13 +19,16 @@ func main() {
 	// Setup signal handlers
 	ctx, cancel := context.WithCancel(context.Background())
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	go func() { <-c; cancel() }()
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		cancel()
+	}()
 
 	m := NewMain()
 
 	// parse env vars and load config
-	err := godotenv.Load()
+	err := godotenv.Load("data/.env")
 	if err != nil {
 		log.Debug("Error loading .env file", "error", err)
 	}
@@ -40,6 +44,7 @@ func main() {
 		m.Close()
 		os.Exit(1)
 	}
+	log.Info("application set up and started... Listening for events")
 
 	// Wait for ctrl c
 	<-ctx.Done()
@@ -119,7 +124,7 @@ func (m *Main) Run(ctx context.Context) (err error) {
 	}
 
 	// Set up the services using the root dependencies
-	userService := sqlite.NewUserService(m.DB)
+	// userService := sqlite.NewUserService(m.DB)
 	eventService := sqlite.NewEventService(m.DB)
 	userEventService := sqlite.NewUserEventService(m.DB)
 
@@ -132,41 +137,6 @@ func (m *Main) Run(ctx context.Context) (err error) {
 		ntfyService,
 	)
 	laundrySubscriberService.Subscribe(m.Config.MQTT.topic)
-
-	// This is just testing for now
-	user, err := userService.FindUserById(ctx, 1)
-	if err != nil {
-		log.Error("failed to find user", "error", err)
-	}
-	log.Debug("user", "user", user)
-
-	// create := &laundryNotify.Event{
-	// 	Type:       "washer",
-	// 	StartedAt:  time.Now(),
-	// 	FinishedAt: time.Now(),
-	// }
-	// eventService.CreateEvent(ctx, create)
-
-	event, err := eventService.FindEventById(ctx, 1)
-	if err != nil {
-		log.Error("failed to find event", "error", err)
-	}
-	log.Debug("event", "event", event)
-
-	// create2 := &laundryNotify.UserEvent{
-	// 	UserId:    user.Id,
-	// 	EventId:   event.Id,
-	// 	CreatedAt: time.Now(),
-	// }
-	// err = userEventService.CreateUserEvent(ctx, create2)
-	if err != nil {
-		log.Error("failed to create user event", "error", err)
-	}
-	userEvent, err := userEventService.FindUserEventById(ctx, 1)
-	if err != nil {
-		log.Error("failed to find user event", "error", err)
-	}
-	log.Debug("user event", "user event", userEvent)
 
 	return nil
 }

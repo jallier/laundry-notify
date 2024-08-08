@@ -27,3 +27,4 @@ tmp/
 laundry-notify
 *.db-shm
 *.db-wal
+*.env

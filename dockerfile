@@ -20,6 +20,7 @@ COPY --from=builder /laundry-notify /app/laundry-notify
 
 EXPOSE 8080
 
-USER nonroot:nonroot
+# This causes permissions errors with the db and cbf troubleshooting for just me; disabling for now
+# USER nonroot:nonroot
 
 ENTRYPOINT ["/app/laundry-notify"]
