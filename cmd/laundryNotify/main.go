@@ -26,7 +26,7 @@ func main() {
 	// parse env vars and load config
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Error loading .env file. Either one not provided or running in prod mode")
+		log.Debug("Error loading .env file", "error", err)
 	}
 	env := os.Getenv("ENV")
 	if env == "dev" || env == "development" {
@@ -201,11 +201,26 @@ func DefaultConfig() *Config {
 
 func SetConfigFromEnv(config *Config) {
 	config.DB.DSN = os.Getenv("DB_DSN")
+	if config.DB.DSN == "" {
+		log.Fatal("DB_DSN is required")
+	}
 	config.MQTT.URL = os.Getenv("MQTT_URL")
+	if config.MQTT.URL == "" {
+		log.Fatal("MQTT_URL is required")
+	}
 	config.MQTT.ClientId = os.Getenv("MQTT_CLIENT_ID")
+	if config.MQTT.ClientId == "" {
+		log.Fatal("MQTT_CLIENT_ID is required")
+	}
 	config.MQTT.Username = os.Getenv("MQTT_USERNAME")
 	config.MQTT.Password = os.Getenv("MQTT_PASSWORD")
 	config.MQTT.topic = os.Getenv("MQTT_TOPIC")
+	if config.MQTT.topic == "" {
+		log.Fatal("MQTT_TOPIC is required")
+	}
 	config.Ntfy.NtfyServer = os.Getenv("NTFY_SERVER")
 	config.Ntfy.BaseTopic = os.Getenv("NTFY_BASE_TOPIC")
+	if config.Ntfy.BaseTopic == "" {
+		log.Fatal("NTFY_BASE_TOPIC is required")
+	}
 }
