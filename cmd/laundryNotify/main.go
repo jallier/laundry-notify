@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	log.Info("starting...")
+	log.Info("starting....")
 
 	// Setup signal handlers
 	ctx, cancel := context.WithCancel(context.Background())
