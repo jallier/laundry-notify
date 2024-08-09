@@ -1,6 +1,7 @@
 package main
 
 import (
+	"jallier/laundry-notify/internal/http"
 	"jallier/laundry-notify/internal/mqtt"
 	"jallier/laundry-notify/internal/ntfy"
 	"jallier/laundry-notify/internal/sqlite"
@@ -60,6 +61,7 @@ type Main struct {
 	DB     *sqlite.DB
 	MQTT   *mqtt.MQTTManager
 	Ntfy   *ntfy.NtfyManager
+	Http   *http.HttpServer
 	Config *Config
 }
 
@@ -69,6 +71,7 @@ func NewMain() *Main {
 		DB:     sqlite.NewDB(""),
 		MQTT:   mqtt.NewMQTTManager(),
 		Ntfy:   ntfy.NewNtfyManager("", nil),
+		Http:   http.NewHttpServer(),
 		Config: DefaultConfig(),
 	}
 }
@@ -123,6 +126,9 @@ func (m *Main) Run(ctx context.Context) (err error) {
 		return err
 	}
 
+	m.Http.Config.Env = m.Config.Http.Env
+	m.Http.Open()
+
 	// Set up the services using the root dependencies
 	// userService := sqlite.NewUserService(m.DB)
 	eventService := sqlite.NewEventService(m.DB)
@@ -159,6 +165,10 @@ type Config struct {
 		NtfyServer string
 		BaseTopic  string
 	}
+	Http struct {
+		Env string
+	}
+	Env string
 }
 
 // DefaultConfig returns a new instance of Config with default values
@@ -170,6 +180,7 @@ func DefaultConfig() *Config {
 }
 
 func SetConfigFromEnv(config *Config) {
+	config.Env = os.Getenv("ENV")
 	config.DB.DSN = os.Getenv("DB_DSN")
 	if config.DB.DSN == "" {
 		log.Fatal("DB_DSN is required")
@@ -193,4 +204,5 @@ func SetConfigFromEnv(config *Config) {
 	if config.Ntfy.BaseTopic == "" {
 		log.Fatal("NTFY_BASE_TOPIC is required")
 	}
+	config.Http.Env = config.Env
 }
