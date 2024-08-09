@@ -130,9 +130,12 @@ func (m *Main) Run(ctx context.Context) (err error) {
 	m.Http.Open()
 
 	// Set up the services using the root dependencies
-	// userService := sqlite.NewUserService(m.DB)
+	userService := sqlite.NewUserService(m.DB)
 	eventService := sqlite.NewEventService(m.DB)
 	userEventService := sqlite.NewUserEventService(m.DB)
+
+	m.Http.UserService = userService
+	m.Http.EventService = eventService
 
 	ntfyService := ntfy.NewLaundryNotifyService(m.Ntfy)
 

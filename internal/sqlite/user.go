@@ -37,6 +37,21 @@ func (s *UserService) FindUserById(ctx context.Context, id int) (*laundryNotify.
 	return user, nil
 }
 
+func (s *UserService) FindMostRecentUser(ctx context.Context) (*laundryNotify.User, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	user, err := findMostRecentUser(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
 func (s *UserService) CreateUser(ctx context.Context, user *laundryNotify.User) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -138,4 +153,38 @@ func findUsers(ctx context.Context, tx *Tx, filter laundryNotify.UserFilter) (_ 
 	}
 
 	return users, n, nil
+}
+
+func findMostRecentUser(ctx context.Context, tx *Tx) (*laundryNotify.User, error) {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT 
+			name 
+		FROM users
+		ORDER BY created_at DESC
+		LIMIT 1
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	users := make([]*laundryNotify.User, 1)
+	for rows.Next() {
+		var user laundryNotify.User
+		if err := rows.Scan(
+			&user.Name,
+		); err != nil {
+			return nil, err
+		}
+		users = append(users, &user)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(users) == 0 {
+		return nil, nil
+	}
+
+	return users[0], nil
 }

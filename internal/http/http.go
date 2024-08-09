@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	laundryNotify "jallier/laundry-notify"
 	"net/http"
 
 	"github.com/charmbracelet/log"
@@ -14,8 +15,10 @@ type HttpServer struct {
 	Config struct {
 		Env string
 	}
-	ctx    context.Context
-	cancel func()
+	UserService  laundryNotify.UserService
+	EventService laundryNotify.EventService
+	ctx          context.Context
+	cancel       func()
 }
 
 func NewHttpServer() *HttpServer {

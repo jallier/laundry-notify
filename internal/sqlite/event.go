@@ -131,13 +131,16 @@ func findEventById(ctx context.Context, tx *Tx, id int) (*laundryNotify.Event, e
 }
 
 func findMostRecentEvent(ctx context.Context, tx *Tx, eventType string) (*laundryNotify.Event, error) {
+	eventFilter := laundryNotify.EventFilter{
+		OrderBy: []string{"started_at DESC"},
+	}
+	if eventType != "" {
+		eventFilter.Type = &eventType
+	}
 	events, _, err := findEvents(
 		ctx,
 		tx,
-		laundryNotify.EventFilter{
-			Type:    &eventType,
-			OrderBy: []string{"started_at DESC"},
-		},
+		eventFilter,
 	)
 	if err != nil {
 		return nil, err
