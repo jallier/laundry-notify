@@ -12,7 +12,7 @@ func (s *HttpServer) registerIndexRoute() {
 }
 
 func (s *HttpServer) handleIndex(c *gin.Context) {
-	user, err := s.UserService.FindMostRecentUser(s.ctx)
+	user, _, err := s.UserService.FindMostRecentUsers(s.ctx, "")
 	if err != nil {
 		log.Error("Error finding most recent user", "error", err)
 	}
@@ -23,6 +23,6 @@ func (s *HttpServer) handleIndex(c *gin.Context) {
 	c.HTML(http.StatusOK, "index", gin.H{
 		"title":           "Laundry Notify",
 		"mostRecentEvent": mostRecentEvent,
-		"user":            user,
+		"user":            user[0],
 	})
 }

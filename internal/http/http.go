@@ -34,6 +34,7 @@ func NewHttpServer() *HttpServer {
 
 	// Register controllers with router
 	server.registerIndexRoute()
+	server.registerSearchRoute()
 	registerRouterGroup := server.router.Group("/register")
 	server.registerRegisterRoutes(registerRouterGroup)
 

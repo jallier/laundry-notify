@@ -37,19 +37,19 @@ func (s *UserService) FindUserById(ctx context.Context, id int) (*laundryNotify.
 	return user, nil
 }
 
-func (s *UserService) FindMostRecentUser(ctx context.Context) (*laundryNotify.User, error) {
+func (s *UserService) FindMostRecentUsers(ctx context.Context, name string) ([]*laundryNotify.User, int, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer tx.Rollback()
 
-	user, err := findMostRecentUser(ctx, tx)
+	user, n, err := findMostRecentUsers(ctx, tx, name)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return user, nil
+	return user, n, nil
 }
 
 func (s *UserService) CreateUser(ctx context.Context, user *laundryNotify.User) error {
@@ -155,36 +155,48 @@ func findUsers(ctx context.Context, tx *Tx, filter laundryNotify.UserFilter) (_ 
 	return users, n, nil
 }
 
-func findMostRecentUser(ctx context.Context, tx *Tx) (*laundryNotify.User, error) {
-	rows, err := tx.QueryContext(ctx, `
+func findMostRecentUsers(ctx context.Context, tx *Tx, name string) (_ []*laundryNotify.User, n int, err error) {
+	// Build WHERE clause.
+	where, args := []string{"1 = 1"}, []interface{}{}
+	if name != "" {
+		where, args = append(where, "name LIKE ?"), append(args, "%"+name+"%")
+	}
+
+	query := `
 		SELECT 
-			name 
+			id,
+			name,
+			COUNT(*) OVER()
 		FROM users
+		WHERE ` + strings.Join(where, " AND ") + `
 		ORDER BY created_at DESC
-		LIMIT 1
-	`)
+		LIMIT 5
+	`
+	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
-	users := make([]*laundryNotify.User, 1)
+	users := make([]*laundryNotify.User, 0)
 	for rows.Next() {
 		var user laundryNotify.User
 		if err := rows.Scan(
+			&user.Id,
 			&user.Name,
+			&n,
 		); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		users = append(users, &user)
 	}
 	if err = rows.Err(); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	if len(users) == 0 {
-		return nil, nil
+		return nil, 0, nil
 	}
 
-	return users[0], nil
+	return users, n, nil
 }

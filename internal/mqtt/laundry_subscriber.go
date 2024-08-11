@@ -80,7 +80,7 @@ func (s *LaundrySubscriberService) addNewEvent(eventType string, startedAtTimest
 		return err
 	}
 	log.Debug("Most recent event", "result", result)
-	if result == nil || !result.FinishedAt.Valid {
+	if result == nil || result.FinishedAt.Valid {
 		log.Debug("No existing unfinished event found, inserting new event")
 		err := s.eventService.CreateEvent(s.mqtt.ctx, &laundryNotify.Event{
 			Type:      eventType,
@@ -92,7 +92,7 @@ func (s *LaundrySubscriberService) addNewEvent(eventType string, startedAtTimest
 		}
 		log.Info("New event inserted", "type", eventType, "started_at", startedAt)
 	} else {
-		log.Info("existing event found, skipping")
+		log.Info("existing event found, not adding event")
 		return nil
 	}
 

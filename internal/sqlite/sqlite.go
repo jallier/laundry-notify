@@ -213,7 +213,8 @@ func (n *NullTime) Scan(value interface{}) error {
 
 // Value formats a time value for the database.
 func (n *NullTime) Value() (driver.Value, error) {
-	if n == nil || ((*sql.NullTime)(n).Valid && (*sql.NullTime)(n).Time.IsZero()) {
+	value := (*sql.NullTime)(n)
+	if n == nil || !value.Valid || value.Time.IsZero() {
 		return nil, nil
 	}
 	timeStr := (*sql.NullTime)(n).Time.UTC().Format(time.RFC3339)

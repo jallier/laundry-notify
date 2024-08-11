@@ -1,5 +1,5 @@
 {{ define "partials/search" }}
 {{ range .users }}
-<li><a href="/register?name={{ . }}">{{ . }}</a></li>
+<li><a href="/register?name={{ .Name }}">{{ .Name }}</a></li>
 {{ end }}
 {{ end }}

@@ -19,12 +19,12 @@
                 <div>
                     <div>
                         <span>Started:</span>
-                        <span>{{ .StartedAt }}</span>
+                        <span>{{ .StartedAt.Time.Local.Format "Mon 3:04pm" }}</span>
                     </div>
                     <div>
                         <span>Ended:</span>
                         {{ if .FinishedAt.Valid }}
-                        <span>{{ .FinishedAt.String }}</span>
+                        <span>{{ .FinishedAt.Time.Local.Format "Mon 3:04pm" }}</span>
                         {{ else }}
                         <span>In Progress...</span>
                         {{ end }}

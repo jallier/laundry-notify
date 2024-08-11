@@ -9,6 +9,7 @@ type Event struct {
 	Type       string
 	StartedAt  sql.NullTime
 	FinishedAt sql.NullTime
+	User       *User
 }
 
 func (e *Event) Validate() error {

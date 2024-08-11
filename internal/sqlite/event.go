@@ -114,7 +114,9 @@ func createEvent(ctx context.Context, tx *Tx, event *laundryNotify.Event) error 
 		INSERT INTO events (type, started_at, finished_at) 
 		VALUES (?, ?, ?)
 		`,
-		event.Type, event.StartedAt, event.FinishedAt,
+		event.Type,
+		(*NullTime)(&event.StartedAt),
+		(*NullTime)(&event.FinishedAt),
 	)
 	return err
 }
@@ -133,6 +135,7 @@ func findEventById(ctx context.Context, tx *Tx, id int) (*laundryNotify.Event, e
 func findMostRecentEvent(ctx context.Context, tx *Tx, eventType string) (*laundryNotify.Event, error) {
 	eventFilter := laundryNotify.EventFilter{
 		OrderBy: []string{"started_at DESC"},
+		Limit:   1,
 	}
 	if eventType != "" {
 		eventFilter.Type = &eventType
