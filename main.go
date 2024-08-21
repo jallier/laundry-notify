@@ -393,7 +393,7 @@ func handleRegister(c *gin.Context) {
 	}
 	// Now register the user for this event
 	// If the event is finished, register with a blank finished_at because we want to register for the next one
-	if event.FinishedAt.Time.IsZero() {
+	if !event.FinishedAt.Time.IsZero() {
 		log.Debug("Event is finished, registering for next one")
 		// First check if they have already registered for the next event
 		row := db.QueryRow("select id from user_events where user_id = (select id from users where name = ?) and event_id is null", name)
@@ -474,4 +474,8 @@ type UserEventFilter struct {
 type UserEventService interface {
 	FindUserEventById(ctx context.Context, id int) (*UserEvent, error)
 	FindUserNamesByEventId(ctx context.Context, eventId int) ([]string, error)
+	FindByUserName(ctx context.Context, name string, eventType string) ([]*UserEvent, int, error)
+	FindUpcomingUserEvents(ctx context.Context, eventType string) ([]*UserEvent, int, error)
+	CreateUserEvent(ctx context.Context, userEvent *UserEvent) error
+	UpdateUserEvent(ctx context.Context, id int, update UserEventUpdate) (*UserEvent, error)
 }

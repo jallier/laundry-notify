@@ -1,26 +1,33 @@
 package laundryNotify
 
-import "time"
+import (
+	"database/sql"
+)
 
 type UserEvent struct {
 	Id        int
 	UserId    int
 	EventId   int
-	CreatedAt time.Time
+	CreatedAt sql.NullTime
+	Type      string
 }
 
 func (u *UserEvent) Validate() error {
-	if u.EventId <= 0 {
-		return Errorf(EINVALID, "Event ID required.")
-	}
-
 	if u.UserId <= 0 {
 		return Errorf(EINVALID, "User ID required.")
 	}
 
-	if u.CreatedAt.IsZero() {
+	if !u.CreatedAt.Valid {
 		return Errorf(EINVALID, "UserEvent creation time required.")
 	}
 
+	if u.Type == "" {
+		return Errorf(EINVALID, "UserEvent type required.")
+	}
+
 	return nil
+}
+
+type UserEventUpdate struct {
+	EventId int
 }

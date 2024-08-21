@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	laundryNotify "jallier/laundry-notify"
 	"strings"
 
@@ -52,6 +53,26 @@ func (s *UserService) FindMostRecentUsers(ctx context.Context, name string) ([]*
 	return user, n, nil
 }
 
+func (s *UserService) FindUserByName(ctx context.Context, name string) (*laundryNotify.User, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		log.Error("failed to begin transaction", "error", err)
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	users, _, err := findUsers(ctx, tx, laundryNotify.UserFilter{Name: &name})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(users) == 0 {
+		return nil, nil
+	}
+
+	return users[0], nil
+}
+
 func (s *UserService) CreateUser(ctx context.Context, user *laundryNotify.User) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -67,7 +88,11 @@ func (s *UserService) CreateUser(ctx context.Context, user *laundryNotify.User) 
 }
 
 func createUser(ctx context.Context, tx *Tx, user *laundryNotify.User) error {
-	user.CreatedAt.Time = tx.now
+	time := sql.NullTime{
+		Time:  tx.now,
+		Valid: true,
+	}
+	user.CreatedAt = time
 
 	if err := user.Validate(); err != nil {
 		return err

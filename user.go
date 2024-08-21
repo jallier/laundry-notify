@@ -28,4 +28,6 @@ type UserFilter struct {
 type UserService interface {
 	FindUserById(ctx context.Context, id int) (*User, error)
 	FindMostRecentUsers(ctx context.Context, name string) ([]*User, int, error)
+	FindUserByName(ctx context.Context, name string) (*User, error)
+	CreateUser(ctx context.Context, user *User) error
 }

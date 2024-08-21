@@ -1,0 +1,5 @@
+{{ define "partials/search-dryer" }}
+{{ range .users }}
+<li><a href="/register?name={{ .Name }}&type=dryer">{{ .Name }}</a></li>
+{{ end }}
+{{ end }}

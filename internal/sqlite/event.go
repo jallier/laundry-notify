@@ -108,7 +108,7 @@ func createEvent(ctx context.Context, tx *Tx, event *laundryNotify.Event) error 
 		return err
 	}
 
-	_, err := tx.ExecContext(
+	res, err := tx.ExecContext(
 		ctx,
 		`
 		INSERT INTO events (type, started_at, finished_at) 
@@ -118,7 +118,17 @@ func createEvent(ctx context.Context, tx *Tx, event *laundryNotify.Event) error 
 		(*NullTime)(&event.StartedAt),
 		(*NullTime)(&event.FinishedAt),
 	)
-	return err
+	if err != nil {
+		return err
+	}
+
+	id, err := res.LastInsertId()
+	if err != nil {
+		return err
+	}
+	event.Id = int(id)
+
+	return nil
 }
 
 func findEventById(ctx context.Context, tx *Tx, id int) (*laundryNotify.Event, error) {

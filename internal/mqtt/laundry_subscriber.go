@@ -82,15 +82,35 @@ func (s *LaundrySubscriberService) addNewEvent(eventType string, startedAtTimest
 	log.Debug("Most recent event", "result", result)
 	if result == nil || result.FinishedAt.Valid {
 		log.Debug("No existing unfinished event found, inserting new event")
-		err := s.eventService.CreateEvent(s.mqtt.ctx, &laundryNotify.Event{
+		event := &laundryNotify.Event{
 			Type:      eventType,
 			StartedAt: sql.NullTime{Time: startedAt, Valid: true},
-		})
+		}
+		err := s.eventService.CreateEvent(s.mqtt.ctx, event)
 		if err != nil {
 			log.Error("Error creating new event", "error", err)
 			return err
 		}
-		log.Info("New event inserted", "type", eventType, "started_at", startedAt)
+		log.Info("New event inserted", "type", eventType, "started_at", startedAt, "id", event.Id)
+		log.Debug("Checking for users subscribed to future event")
+		userEvents, n, err := s.userEventService.FindUpcomingUserEvents(s.mqtt.ctx, eventType)
+		if err != nil {
+			log.Error("Error finding upcoming user events", "error", err)
+			return err
+		}
+		log.Debug("Upcoming user events", "count", n, "events", userEvents)
+		if n == 0 {
+			log.Info("No users subscribed to future event")
+			return nil
+		}
+		for _, userEvent := range userEvents {
+			_, err = s.userEventService.UpdateUserEvent(s.mqtt.ctx, userEvent.Id, laundryNotify.UserEventUpdate{EventId: event.Id})
+			if err != nil {
+				log.Error("Error updating user event", "error", err)
+				continue
+			}
+			log.Debug("Updated user events", "event_id", userEvent.Id)
+		}
 	} else {
 		log.Info("existing event found, not adding event")
 		return nil

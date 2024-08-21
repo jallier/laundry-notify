@@ -136,6 +136,7 @@ func (m *Main) Run(ctx context.Context) (err error) {
 
 	m.Http.UserService = userService
 	m.Http.EventService = eventService
+	m.Http.UserEventService = userEventService
 
 	ntfyService := ntfy.NewLaundryNotifyService(m.Ntfy)
 

@@ -1,6 +1,7 @@
 package http
 
 import (
+	laundryNotify "jallier/laundry-notify"
 	"net/http"
 
 	"github.com/charmbracelet/log"
@@ -16,13 +17,19 @@ func (s *HttpServer) handleIndex(c *gin.Context) {
 	if err != nil {
 		log.Error("Error finding most recent user", "error", err)
 	}
-	mostRecentEvent, err := s.EventService.FindMostRecentEvent(s.ctx, "")
+	mostRecentWasherEvent, err := s.EventService.FindMostRecentEvent(s.ctx, laundryNotify.WASHER_EVENT)
 	if err != nil {
 		log.Error("Error finding most recent event", "error", err)
 	}
+	mostRecentDryerEvent, err := s.EventService.FindMostRecentEvent(s.ctx, laundryNotify.DRYER_EVENT)
+	if err != nil {
+		log.Error("Error finding most recent event", "error", err)
+	}
+
 	c.HTML(http.StatusOK, "index", gin.H{
-		"title":           "Laundry Notify",
-		"mostRecentEvent": mostRecentEvent,
-		"user":            user[0],
+		"title":                 "Laundry Notify",
+		"mostRecentWasherEvent": mostRecentWasherEvent,
+		"mostRecentDryerEvent":  mostRecentDryerEvent,
+		"user":                  user[0],
 	})
 }

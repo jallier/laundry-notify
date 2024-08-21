@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	laundryNotify "jallier/laundry-notify"
 	"strings"
 )
@@ -43,6 +44,36 @@ func (s *UserEventService) FindUserNamesByEventId(ctx context.Context, eventId i
 	return events, nil
 }
 
+func (s *UserEventService) FindByUserName(ctx context.Context, name string, eventType string) ([]*laundryNotify.UserEvent, int, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer tx.Rollback()
+
+	events, n, err := findByUserName(ctx, tx, name, eventType)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return events, n, nil
+}
+
+func (s *UserEventService) FindUpcomingUserEvents(ctx context.Context, eventType string) ([]*laundryNotify.UserEvent, int, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer tx.Rollback()
+
+	events, n, err := findUpcomingUserEvents(ctx, tx, eventType)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return events, n, nil
+}
+
 func (s *UserEventService) CreateUserEvent(ctx context.Context, userEvent *laundryNotify.UserEvent) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -57,7 +88,28 @@ func (s *UserEventService) CreateUserEvent(ctx context.Context, userEvent *laund
 	return tx.Commit()
 }
 
+func (s *UserEventService) UpdateUserEvent(ctx context.Context, id int, update laundryNotify.UserEventUpdate) (*laundryNotify.UserEvent, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	event, err := updateUserEvent(ctx, tx, id, update)
+	if err != nil {
+		return nil, err
+	}
+
+	return event, tx.Commit()
+}
+
 func createUserEvent(ctx context.Context, tx *Tx, userEvent *laundryNotify.UserEvent) error {
+	time := sql.NullTime{
+		Time:  tx.now,
+		Valid: true,
+	}
+	userEvent.CreatedAt = time
+
 	if err := userEvent.Validate(); err != nil {
 		return err
 	}
@@ -65,10 +117,10 @@ func createUserEvent(ctx context.Context, tx *Tx, userEvent *laundryNotify.UserE
 	_, err := tx.ExecContext(
 		ctx,
 		`
-		INSERT INTO user_events (user_id, event_id, created_at) 
-		VALUES (?, ?, ?)
+		INSERT INTO user_events (user_id, event_id, created_at, type) 
+		VALUES (?, ?, ?, ?)
 		`,
-		userEvent.UserId, userEvent.EventId, userEvent.CreatedAt,
+		userEvent.UserId, userEvent.EventId, userEvent.CreatedAt, userEvent.Type,
 	)
 	return err
 }
@@ -82,6 +134,95 @@ func findUserEventById(ctx context.Context, tx *Tx, id int) (*laundryNotify.User
 		return nil, laundryNotify.Errorf(laundryNotify.ENOTFOUND, "UserEvent not found: %d", id)
 	}
 	return a[0], nil
+}
+
+func findByUserName(ctx context.Context, tx *Tx, name string, eventType string) ([]*laundryNotify.UserEvent, int, error) {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT
+			ue.id,
+			ue.user_id,
+			ue.event_id,
+			ue.created_at,
+			ue.type,
+			COUNT(*) OVER()
+		FROM user_events ue
+		JOIN users u ON u.id = ue.user_id
+		WHERE u.name = ?
+			AND ue.type = ?
+			AND (
+				ue.event_id IS NULL
+				OR ue.event_id = 0
+			)
+		ORDER BY ue.created_at DESC
+		`+FormatLimitOffset(5, 0),
+		name,
+		eventType,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var events []*laundryNotify.UserEvent
+	var n int
+	for rows.Next() {
+		var e laundryNotify.UserEvent
+		if err := rows.Scan(
+			&e.Id,
+			&e.UserId,
+			&e.EventId,
+			&e.CreatedAt,
+			&e.Type,
+			&n,
+		); err != nil {
+			return nil, 0, err
+		}
+		events = append(events, &e)
+	}
+	return events, n, nil
+}
+
+func findUpcomingUserEvents(ctx context.Context, tx *Tx, eventType string) ([]*laundryNotify.UserEvent, int, error) {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT
+			ue.id,
+			ue.user_id,
+			ue.event_id,
+			ue.created_at,
+			ue.type,
+			COUNT(*) OVER()
+		FROM user_events ue
+		WHERE ue.type = ?
+		AND (
+			ue.event_id IS NULL
+			OR ue.event_id = 0
+		)	
+		ORDER BY ue.created_at DESC
+		`+FormatLimitOffset(5, 0),
+		eventType,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var events []*laundryNotify.UserEvent
+	var n int
+	for rows.Next() {
+		var e laundryNotify.UserEvent
+		if err := rows.Scan(
+			&e.Id,
+			&e.UserId,
+			&e.EventId,
+			&e.CreatedAt,
+			&e.Type,
+			&n,
+		); err != nil {
+			return nil, 0, err
+		}
+		events = append(events, &e)
+	}
+	return events, n, nil
 }
 
 func findUserNamesEventByEventId(ctx context.Context, tx *Tx, eventId int) ([]string, error) {
@@ -125,6 +266,7 @@ func findUserEvents(ctx context.Context, tx *Tx, filter laundryNotify.UserEventF
 			user_id,
 			event_id,
 			created_at,
+			type,
 			COUNT(*) OVER()
 		FROM user_events
 		WHERE `+strings.Join(where, " AND ")+`
@@ -137,17 +279,49 @@ func findUserEvents(ctx context.Context, tx *Tx, filter laundryNotify.UserEventF
 
 	var a []*laundryNotify.UserEvent
 	for rows.Next() {
-		var o laundryNotify.UserEvent
+		var ue laundryNotify.UserEvent
 		if err := rows.Scan(
-			&o.Id,
-			&o.UserId,
-			&o.EventId,
-			&o.CreatedAt,
+			&ue.Id,
+			&ue.UserId,
+			&ue.EventId,
+			&ue.CreatedAt,
+			&ue.Type,
 			&n,
 		); err != nil {
 			return nil, 0, err
 		}
-		a = append(a, &o)
+		a = append(a, &ue)
 	}
 	return a, len(a), nil
+}
+
+func updateUserEvent(ctx context.Context, tx *Tx, id int, update laundryNotify.UserEventUpdate) (*laundryNotify.UserEvent, error) {
+	userEvent, err := findUserEventById(ctx, tx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if v := update.EventId; v > 0 {
+		userEvent.EventId = v
+	}
+
+	if err = userEvent.Validate(); err != nil {
+		return nil, err
+	}
+
+	_, err = tx.ExecContext(
+		ctx,
+		`
+		UPDATE user_events
+		SET event_id = ?
+		WHERE id = ?
+		`,
+		userEvent.EventId,
+		id,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return userEvent, nil
 }

@@ -13,20 +13,25 @@ func (s *HttpServer) registerSearchRoute() {
 
 type SearchRequest struct {
 	Name string `form:"name"`
+	Type string `form:"type"`
 }
 
 func (s *HttpServer) handleSearch(c *gin.Context) {
 	var req SearchRequest
 	c.Bind(&req)
-	log.Debug("Received search request", "name", req.Name)
 
-	users, n, err := s.UserService.FindMostRecentUsers(s.ctx, req.Name)
+	users, _, err := s.UserService.FindMostRecentUsers(s.ctx, req.Name)
 	if err != nil {
 		log.Error("Error finding most recent users", "error", err)
 	}
-	log.Debug("Found users", "users", users, "count", n)
 
-	c.HTML(http.StatusOK, "partials/search.html", gin.H{
+	// Stupid goview workaround. Or maybe stupid me :thinking:
+	templateName := "partials/search-washer.html"
+	if req.Type == "dryer" {
+		templateName = "partials/search-dryer.html"
+	}
+
+	c.HTML(http.StatusOK, templateName, gin.H{
 		"users": users,
 	})
 }

@@ -1,0 +1,5 @@
+{{ define "partials/search-washer" }}
+{{ range .users }}
+<li><a href="/register?name={{ .Name }}&type=washer">{{ .Name }}</a></li>
+{{ end }}
+{{ end }}

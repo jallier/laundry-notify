@@ -4,6 +4,9 @@ import (
 	"database/sql"
 )
 
+const WASHER_EVENT = "washer"
+const DRYER_EVENT = "dryer"
+
 type Event struct {
 	Id         int
 	Type       string
