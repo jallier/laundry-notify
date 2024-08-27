@@ -17,6 +17,9 @@ func (s *HttpServer) handleIndex(c *gin.Context) {
 	if err != nil {
 		log.Error("Error finding most recent user", "error", err)
 	}
+	if len(user) == 0 {
+		user = append(user, &laundryNotify.User{})
+	}
 	mostRecentWasherEvent, err := s.EventService.FindMostRecentEvent(s.ctx, laundryNotify.WASHER_EVENT)
 	if err != nil {
 		log.Error("Error finding most recent event", "error", err)
