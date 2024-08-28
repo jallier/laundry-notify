@@ -2,9 +2,12 @@ package http
 
 import (
 	"context"
+	"embed"
 	"fmt"
+	"io/fs"
 	laundryNotify "jallier/laundry-notify"
 	"net/http"
+	"path/filepath"
 	"text/template"
 
 	"github.com/charmbracelet/log"
@@ -25,13 +28,20 @@ type HttpServer struct {
 	cancel           func()
 }
 
+//go:embed views/*
+var viewFS embed.FS
+
+//go:embed static/*
+var static embed.FS
+var staticFS, _ = fs.Sub(static, "static")
+
 func NewHttpServer() *HttpServer {
 	server := &HttpServer{
 		router: gin.Default(),
 	}
 	server.ctx, server.cancel = context.WithCancel(context.Background())
 
-	renderer := ginview.New(goview.Config{
+	gvRenderer := ginview.New(goview.Config{
 		Root:      "views",
 		Extension: ".html",
 		Master:    "layouts/master",
@@ -39,8 +49,9 @@ func NewHttpServer() *HttpServer {
 			"dict": dict,
 		},
 	})
-	server.router.HTMLRender = renderer
-	server.router.Static("/static", "./static") // TODO: this should be moved into the same dir
+	gvRenderer.SetFileHandler(embeddedFileHandler)
+	server.router.HTMLRender = gvRenderer
+	server.router.StaticFS("/static", http.FS(staticFS))
 
 	server.router.GET("/ping", handlePing)
 
@@ -87,4 +98,10 @@ func dict(values ...interface{}) (map[string]interface{}, error) {
 		dict[key] = values[i+1]
 	}
 	return dict, nil
+}
+
+func embeddedFileHandler(config goview.Config, tmpl string) (string, error) {
+	path := filepath.Join(config.Root, tmpl)
+	bytes, err := viewFS.ReadFile(path + config.Extension)
+	return string(bytes), err
 }
