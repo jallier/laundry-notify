@@ -28,12 +28,10 @@ type HttpServer struct {
 	cancel           func()
 }
 
+//go:embed static/*
 //go:embed views/*
 var viewFS embed.FS
-
-//go:embed static/*
-var static embed.FS
-var staticFS, _ = fs.Sub(static, "static")
+var staticFS, _ = fs.Sub(viewFS, "static")
 
 func NewHttpServer() *HttpServer {
 	server := &HttpServer{
