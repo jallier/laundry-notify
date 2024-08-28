@@ -1,7 +1,12 @@
 {{ define "partials/search-washer" }}
 {{ range .users }}
 <li class="border-b border-gray-200 py-1 p-2 last:border-none last:pb-0 hover:bg-slate-100 rounded-md">
-  <a href="/register?name={{ .Name }}&type=washer">{{ .Name }}</a>
+  <a
+    class="block w-full"
+    href="/register?name={{ .Name }}&type=washer"
+  >
+    {{ .Name }}
+  </a>
 </li>
 {{ end }}
 {{ end }}
