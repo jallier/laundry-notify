@@ -1,12 +1,21 @@
+FROM node:22 AS tailwind-builder
+
+WORKDIR /app
+
+COPY . ./
+
+RUN npm install -g tailwindcss
+RUN npx tailwindcss -i ./assets/app.css -o ./internal/http/static/app.css --minify
+
 # Do the build in a golang container with the full toolchain
-FROM golang:1.22.2 AS builder
+FROM golang:1.23 AS builder
 
 WORKDIR /app
 
 COPY go.mod go.sum ./
-RUN go mod download
+RUN go mod download && go mod verify
 
-COPY . ./
+COPY --from=tailwind-builder /app ./
 
 RUN CGO_ENABLED=1 GOOS=linux go build -o /laundry-notify ./cmd/laundryNotify
 
