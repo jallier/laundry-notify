@@ -127,6 +127,7 @@ func (m *Main) Run(ctx context.Context) (err error) {
 	}
 
 	m.Http.Config.Env = m.Config.Http.Env
+	m.Http.Config.NtfyBaseTopic = m.Config.Ntfy.BaseTopic
 	m.Http.Open()
 
 	// Set up the services using the root dependencies

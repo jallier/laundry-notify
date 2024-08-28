@@ -19,7 +19,8 @@ import (
 type HttpServer struct {
 	router *gin.Engine
 	Config struct {
-		Env string
+		Env           string
+		NtfyBaseTopic string
 	}
 	UserService      laundryNotify.UserService
 	EventService     laundryNotify.EventService

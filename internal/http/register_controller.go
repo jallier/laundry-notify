@@ -83,7 +83,9 @@ func (s *HttpServer) handleRegister(c *gin.Context) {
 		if n > 0 {
 			log.Info("User already registered for next event", "user", user)
 			c.HTML(http.StatusOK, "registered", gin.H{
-				"error": "User already registered for next event",
+				// "error": "User already registered for next event",
+				"title": "Laundry Notify",
+				"name":  user.Name,
 			})
 			return
 		}
@@ -116,7 +118,11 @@ func (s *HttpServer) handleRegister(c *gin.Context) {
 		if n > 0 {
 			log.Info("User already registered for this event", "user", user)
 			c.HTML(http.StatusOK, "registered", gin.H{
-				"error": "User already registered for this event",
+				// "error": "User already registered for this event",
+				"title":                "Laundry Notify",
+				"name":                 user.Name,
+				"previouslyRegistered": true,
+				"ntfyBaseTopic":        s.Config.NtfyBaseTopic,
 			})
 			return
 		}
