@@ -67,82 +67,96 @@ func (s *HttpServer) handleRegister(c *gin.Context) {
 	}
 
 	// If finished at isn't set, then this event is ongoing
-	if mostRecentEvent != nil && mostRecentEvent.FinishedAt.Valid {
-		log.Debug("Event is finished", "event", mostRecentEvent)
-		// Event is finished
-		// First check if they have already registered for the next event
-		_, n, err := s.UserEventService.FindByUserName(s.ctx, user.Name, req.Type)
-		if err != nil {
-			log.Error("Error finding user events by name", "error", err)
-			c.HTML(http.StatusOK, "registered", gin.H{
-				"error": "Error finding user events by name",
-			})
-			return
-		}
-		log.Debug("User event count", "count", n)
-		if n > 0 {
-			log.Info("User already registered for next event", "user", user)
-			c.HTML(http.StatusOK, "registered", gin.H{
-				// "error": "User already registered for next event",
-				"title": "Laundry Notify",
-				"name":  user.Name,
-			})
-			return
-		}
-		// If they haven't, register them for the next event that is created
-		userEvent := &laundryNotify.UserEvent{
-			UserId: user.Id,
-			Type:   req.Type,
-		}
-		err = s.UserEventService.CreateUserEvent(s.ctx, userEvent)
-		if err != nil {
-			log.Error("Error creating user event", "error", err)
-			c.HTML(http.StatusOK, "registered", gin.H{
-				"error": "Error creating user event",
-			})
-			return
-		}
-		log.Info("User registered for next event", "user", user, "event", mostRecentEvent)
+	var templateVars gin.H
+	if mostRecentEvent == nil || mostRecentEvent.FinishedAt.Valid {
+		templateVars = s.registerUserForNextEvent(req, user)
 	} else {
-		log.Debug("Event is ongoing", "event", mostRecentEvent)
-		// Event is ongoing
-		// Check if they are already registered for this event
-		_, n, err := s.UserEventService.FindByUserName(s.ctx, user.Name, req.Type)
-		if err != nil {
-			log.Error("Error finding user events by name", "error", err)
-			c.HTML(http.StatusOK, "registered", gin.H{
-				"error": "Error finding user events by name",
-			})
-			return
+		templateVars = s.registerUserForCurrentEvent(req, mostRecentEvent, user)
+	}
+	c.HTML(http.StatusOK, "registered", templateVars)
+}
+
+func (s *HttpServer) registerUserForNextEvent(req RegisterRequest, user *laundryNotify.User) gin.H {
+	// Event is finished
+	// First check if they have already registered for the next event
+	_, n, err := s.UserEventService.FindByUserName(s.ctx, user.Name, req.Type)
+	if err != nil {
+		log.Error("Error finding user events by name", "error", err)
+		return gin.H{
+			"error": "Error finding user events by name",
 		}
-		if n > 0 {
-			log.Info("User already registered for this event", "user", user)
-			c.HTML(http.StatusOK, "registered", gin.H{
-				// "error": "User already registered for this event",
-				"title":                "Laundry Notify",
-				"name":                 user.Name,
-				"previouslyRegistered": true,
-				"ntfyBaseTopic":        s.Config.NtfyBaseTopic,
-			})
-			return
+	}
+	log.Debug("User event count", "count", n)
+	if n > 0 {
+		log.Info("User already registered for next event", "user", user)
+		return gin.H{
+			"title":                "Laundry Notify",
+			"name":                 user.Name,
+			"previouslyRegistered": true,
+			"ntfyBaseTopic":        s.Config.NtfyBaseTopic,
 		}
-		// If not, register for it
-		userEvent := &laundryNotify.UserEvent{
-			UserId:  user.Id,
-			Type:    req.Type,
-			EventId: mostRecentEvent.Id,
+	}
+	// If they haven't, register them for the next event that is created
+	userEvent := &laundryNotify.UserEvent{
+		UserId: user.Id,
+		Type:   req.Type,
+	}
+	err = s.UserEventService.CreateUserEvent(s.ctx, userEvent)
+	if err != nil {
+		log.Error("Error creating user event", "error", err)
+		return gin.H{
+			"error": "Error creating user event",
 		}
-		err = s.UserEventService.CreateUserEvent(s.ctx, userEvent)
-		if err != nil {
-			log.Error("Error creating user event", "error", err)
-			c.HTML(http.StatusOK, "registered", gin.H{
-				"error": "Error creating user event",
-			})
-			return
+	}
+
+	return gin.H{
+		"title":                "Laundry Notify",
+		"name":                 user.Name,
+		"previouslyRegistered": false,
+		"ntfyBaseTopic":        s.Config.NtfyBaseTopic,
+	}
+}
+
+func (s *HttpServer) registerUserForCurrentEvent(req RegisterRequest, mostRecentEvent *laundryNotify.Event, user *laundryNotify.User) gin.H {
+	log.Debug("Event is ongoing", "event", mostRecentEvent)
+	// Event is ongoing
+	// Check if they are already registered for this event
+	_, n, err := s.UserEventService.FindByUserName(s.ctx, user.Name, req.Type)
+	if err != nil {
+		log.Error("Error finding user events by name", "error", err)
+		return gin.H{
+			"error": "Error finding user events by name",
 		}
-		log.Info("User registered for ongoing event", "user", user, "event", mostRecentEvent)
-		c.HTML(http.StatusOK, "registered", gin.H{
-			"success": "User registered for ongoing event",
-		})
+	}
+	if n > 0 {
+		log.Info("User already registered for this event", "user", user)
+		return gin.H{
+			"title":                "Laundry Notify",
+			"name":                 user.Name,
+			"previouslyRegistered": true,
+			"ntfyBaseTopic":        s.Config.NtfyBaseTopic,
+			"mostReventEvent":      mostRecentEvent,
+		}
+	}
+	// If not, register for it
+	userEvent := &laundryNotify.UserEvent{
+		UserId:  user.Id,
+		Type:    req.Type,
+		EventId: mostRecentEvent.Id,
+	}
+	err = s.UserEventService.CreateUserEvent(s.ctx, userEvent)
+	if err != nil {
+		log.Error("Error creating user event", "error", err)
+		return gin.H{
+			"error": "Error creating user event",
+		}
+	}
+	log.Info("User registered for ongoing event", "user", user, "event", mostRecentEvent)
+	return gin.H{
+		"title":                "Laundry Notify",
+		"name":                 user.Name,
+		"previouslyRegistered": false,
+		"ntfyBaseTopic":        s.Config.NtfyBaseTopic,
+		"mostReventEvent":      mostRecentEvent,
 	}
 }

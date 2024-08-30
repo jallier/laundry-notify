@@ -1,8 +1,8 @@
 {{ define "head" }}
-{{ $redirectUrl := "/" }}
+{{ $redirectUrl := printf "%s%s-%s" "https://ntfy.sh/" .ntfyBaseTopic .name }}
 <script>
   // setTimeout(() => {
-  //   window.location.href = "{{ $redirectUrl }}"; // TODO: update this to point to the ntfy topic
+  //   window.location.href = "{{ $redirectUrl }}";
   // }, 10000);
 </script>
 {{ end }}
@@ -31,11 +31,14 @@
         <div class="space-y-6 py-8 text-base leading-7 text-gray-600">
           {{ if .name }}
           <p>
-            {{ if .previouslyRegistered }} Already registered {{ else }} Registered {{ end }} for the next load, {{ .name }}.
+            {{ if .previouslyRegistered }} Already registered {{ else }} Registered {{ end }} for the next load, 
+            {{ .name }}.
           </p>
           {{ end }}
           <!-- Img or animation of some sort here -->
-          <p>Load started at 3.04pm</p>
+          {{ with .mostRecentEvent }}
+          <p>Load started at {{ .StartedAt.Time.Local.Format "Mon 3:04pm" }}</p>
+          {{ end }}
           <p>
             You will be redirected to the notifications page in 10 seconds, or
             <a
