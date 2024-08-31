@@ -10,6 +10,10 @@ This service lets you subscribe to be notified for specific runs of an appliance
 
 ## Installation
 
+Before you get started, you will need an mqtt broker running somewhere, and some way of sending events from your appliances to mqtt. I use a home assistant automation to do this, but anything that lets you send messages via mqtt based on the power state of the appliances will do the trick.
+
+You will need to set up mqtt to receive events on the topic you specify in the config, with either `started_at=<timestamp>` or `finished_at=<timestamp>`. Please ensure the timestamps are using ISO 8601 format for compatibility.
+
 This repo contains a dockerfile you can use to build a docker container.
 
 Building the go binary should also work, as all the templates are embedded into it.
