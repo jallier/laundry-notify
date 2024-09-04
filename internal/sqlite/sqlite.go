@@ -241,25 +241,3 @@ func FormatOrderBy(orderBy []string) string {
 
 	return fmt.Sprintf("ORDER BY %s", strings.Join(orderBy, ", "))
 }
-
-// FormatError returns err as a WTF error, if possible.
-// Otherwise returns the original error.
-// func FormatError(err error) error {
-// 	if err == nil {
-// 		return nil
-// 	}
-
-// 	switch err.Error() {
-// 	case "UNIQUE constraint failed: dial_memberships.dial_id, dial_memberships.user_id":
-// 		return wtf.Errorf(wtf.ECONFLICT, "Dial membership already exists.")
-// 	default:
-// 		return err
-// 	}
-// }
-
-// logstr is a helper function for printing and returning a string.
-// It can be useful for printing out query text.
-// func logstr(s string) string {
-// 	println(s)
-// 	return s
-// }

@@ -52,3 +52,5 @@ You can also use the home page to see if a load is currently in progress.
 - MQTT
 - Sqlite
 - ntfy.sh
+
+This is based on the example implementation here: https://github.com/benbjohnson/wtf
