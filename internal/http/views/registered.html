@@ -1,9 +1,9 @@
 {{ define "head" }}
 {{ $redirectUrl := printf "%s%s-%s" "https://ntfy.sh/" .ntfyBaseTopic .name }}
 <script>
-  // setTimeout(() => {
-  //   window.location.href = "{{ $redirectUrl }}";
-  // }, 10000);
+  setTimeout(() => {
+    window.location.href = "{{ $redirectUrl }}";
+  }, 10000);
 </script>
 {{ end }}
 
