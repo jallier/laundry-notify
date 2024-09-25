@@ -1,4 +1,17 @@
 {{define "head"}}
+<script type="application/javascript">
+    window.onload = function () {
+        // Handle the refresh button
+        document.getElementById('refresh').addEventListener('click', function () {
+            window.location.reload();
+        });
+
+        // Auto reload every minute
+        setInterval(function () {
+            window.location.reload();
+        }, 60000);
+    };
+</script>
 {{end}}
 
 
@@ -16,8 +29,17 @@
     <div
         class="relative bg-white px-4 pt-4 pb-8 shadow-xl ring-1 ring-gray-900/5 sm:mx-auto sm:max-w-7xl sm:rounded-lg sm:px-10 sm:py-10">
         <div class="mx-auto">
-            <div class="text-5xl">
-                Laundry Notifications
+            <div class="flex items-center justify-between">
+                <div class="text-5xl">
+                    Laundry Notifications
+                </div>
+                <button id="refresh">
+                    <img
+                        src="/static/img/icon-refresh.svg"
+                        alt="refresh"
+                        class="w-8 h-8 hover:rotate-90 transition-all"
+                    />
+                </button>
             </div>
             <div class="divide-y divide-gray-300/50">
                 <div class="space-y-6 py-8 text-base leading-7 text-gray-600">
