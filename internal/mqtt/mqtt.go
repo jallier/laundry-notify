@@ -36,6 +36,16 @@ func (m *MQTTManager) Connect() (MQTT.Token, error) {
 	if m.mqttClient != nil {
 		return nil, fmt.Errorf("already connected to MQTT broker")
 	}
+
+	// Log events
+	m.MqttOpts.SetAutoReconnect(true)
+	m.MqttOpts.OnConnectionLost = func(cl MQTT.Client, err error) {
+		log.Info("mqtt connection lost")
+	}
+	m.MqttOpts.OnReconnecting = func(MQTT.Client, *MQTT.ClientOptions) {
+		log.Info("mqtt attempting to reconnect")
+	}
+
 	newClient := MQTT.NewClient(m.MqttOpts)
 	m.mqttClient = &newClient
 	token := (*m.mqttClient).Connect()
