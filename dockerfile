@@ -5,7 +5,7 @@ WORKDIR /app
 COPY . ./
 
 RUN npm install -g tailwindcss
-RUN npx tailwindcss -i ./assets/app.css -o ./internal/http/static/app.css --minify
+RUN npx tailwindcss@3 -i ./assets/app.css -o ./internal/http/static/app.css --minify
 
 # Do the build in a golang container with the full toolchain
 FROM golang:1.23 AS builder
