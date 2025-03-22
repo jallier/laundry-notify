@@ -45,7 +45,7 @@ func main() {
 		m.Close()
 		os.Exit(1)
 	}
-	log.Info("application set up and started... Listening for events")
+	log.Info("application set up and started...")
 
 	// Wait for ctrl c
 	<-ctx.Done()
@@ -58,11 +58,12 @@ func main() {
 }
 
 type Main struct {
-	DB     *sqlite.DB
-	MQTT   *mqtt.MQTTManager
-	Ntfy   *ntfy.NtfyManager
-	Http   *http.HttpServer
-	Config *Config
+	DB                       *sqlite.DB
+	MQTT                     *mqtt.MQTTManager
+	Ntfy                     *ntfy.NtfyManager
+	Http                     *http.HttpServer
+	Config                   *Config
+	LaundrySubscriberService *mqtt.LaundrySubscriberService
 }
 
 // Returns a new instance of Main
@@ -108,12 +109,15 @@ func (m *Main) Run(ctx context.Context) (err error) {
 	mqttOpts.SetUsername(m.Config.MQTT.Username)
 	mqttOpts.SetPassword(m.Config.MQTT.Password)
 
-	m.MQTT.MqttOpts = mqttOpts
-	_, err = m.MQTT.Connect()
-	if err != nil {
-		log.Error("failed to connect to mqtt broker", "error", err)
-		return err
-	}
+	// Ensure that the subscription is re-established when the connection is lost
+	mqttOpts.SetOnConnectHandler(func(_ mqtt.Client) {
+		log.Debug("connection to mqtt broker established")
+		if m.LaundrySubscriberService != nil {
+			m.LaundrySubscriberService.Subscribe(m.Config.MQTT.topic)
+		} else {
+			log.Error("laundry subscriber service is nil")
+		}
+	})
 
 	if m.Config.Ntfy.NtfyServer == "" {
 		m.Config.Ntfy.NtfyServer = "https://ntfy.sh"
@@ -141,13 +145,19 @@ func (m *Main) Run(ctx context.Context) (err error) {
 
 	ntfyService := ntfy.NewLaundryNotifyService(m.Ntfy)
 
-	laundrySubscriberService := mqtt.NewLaundrySubscriberService(
+	m.LaundrySubscriberService = mqtt.NewLaundrySubscriberService(
 		m.MQTT,
 		eventService,
 		userEventService,
 		ntfyService,
 	)
-	laundrySubscriberService.Subscribe(m.Config.MQTT.topic)
+
+	m.MQTT.MqttOpts = mqttOpts
+	_, err = m.MQTT.Connect()
+	if err != nil {
+		log.Error("failed to connect to mqtt broker", "error", err)
+		return err
+	}
 
 	return nil
 }

@@ -8,6 +8,8 @@ import (
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 )
 
+type Client = MQTT.Client
+
 type MQTTManager struct {
 	MqttOpts   *MQTT.ClientOptions
 	mqttClient *MQTT.Client
