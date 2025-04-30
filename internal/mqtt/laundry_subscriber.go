@@ -5,6 +5,7 @@ import (
 	"fmt"
 	laundryNotify "jallier/laundry-notify"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -19,6 +20,8 @@ type LaundrySubscriberService struct {
 	eventService     laundryNotify.EventService
 	userEventService laundryNotify.UserEventService
 	ntfyService      laundryNotify.LaundryNotifyService
+	eventChan        *chan [2]string
+	wg               sync.WaitGroup
 }
 
 func NewLaundrySubscriberService(
@@ -36,14 +39,26 @@ func NewLaundrySubscriberService(
 }
 
 func (s *LaundrySubscriberService) Subscribe(topic string) {
+	if s.eventChan != nil {
+		log.Debug("Closing existing channel")
+		close(*s.eventChan)
+		s.wg.Wait()
+		log.Debug("Channel closed")
+	}
+
 	eventsChannel := make(chan [2]string)
+	s.eventChan = &eventsChannel
+
 	err := s.mqtt.Subscribe(topic, eventsChannel)
 	if err != nil {
 		log.Error("Error subscribing to MQTT topic", "topic", topic, "error", err)
 		return
 	}
 
+	s.wg.Add(1)
 	go func() {
+		defer s.wg.Done()
+		log.Debug("Beginning channel event loop")
 		for incomingEvent := range eventsChannel {
 			log.Debug("Received event", "topic", incomingEvent[0], "payload", incomingEvent[1])
 
@@ -61,6 +76,7 @@ func (s *LaundrySubscriberService) Subscribe(topic string) {
 				s.finishExistingEvent(leafTopic, messageValue)
 			}
 		}
+		log.Debug("Event channel closed; exiting goroutine")
 	}()
 }
 
